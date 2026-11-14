@@ -279,6 +279,7 @@ public class DownloadService extends Service {
         boolean audioOnly = preferences.getBoolean("audio_only", false);
         boolean downloadSubtitles = preferences.getBoolean("download_subtitles", false);
         if (audioOnly) {
+            request.addOption("-f", "ba/b");
             request.addOption("-x");
             request.addOption("--audio-format", "mp3");
             request.addOption("--audio-quality", "0");
