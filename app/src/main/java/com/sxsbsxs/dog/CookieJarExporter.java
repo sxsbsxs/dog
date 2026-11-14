@@ -140,9 +140,10 @@ public final class CookieJarExporter {
             Map<String, String> rows
     ) {
         if (hostOrUrl == null || hostOrUrl.isEmpty()) return;
+        boolean suppliedUrl = hostOrUrl.contains("://");
         String url = hostOrUrl;
-        if (!url.contains("://")) {
-            url = "https://" + url.replaceFirst("^\\.+", "") + "/";
+        if (!suppliedUrl) {
+            url = "https://" + hostOrUrl.replaceFirst("^\\.+", "") + "/";
         }
         try {
             Uri uri = Uri.parse(url);
@@ -152,7 +153,8 @@ public final class CookieJarExporter {
             String header = manager.getCookie(url);
             if (header == null || header.trim().isEmpty()) return;
 
-            String domain = host;
+            // Preserve Chromium's leading dot for domain cookies; it controls subdomain scope.
+            String domain = suppliedUrl ? host : hostOrUrl;
             for (String part : header.split(";")) {
                 String item = part.trim();
                 int equals = item.indexOf('=');
