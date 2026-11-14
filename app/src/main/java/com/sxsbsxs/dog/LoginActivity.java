@@ -322,6 +322,20 @@ public class LoginActivity extends Activity {
             if (host.endsWith(".nicovideo.jp") || host.equals("nicovideo.jp")) {
                 return "https://www.nicovideo.jp/";
             }
+            if (host.endsWith(".weibo.com") || host.equals("weibo.com") ||
+                    host.endsWith(".weibo.cn") || host.equals("weibo.cn")) {
+                return "https://weibo.com/";
+            }
+            if (host.endsWith(".ixigua.com") || host.equals("ixigua.com") ||
+                    host.endsWith(".xigua.com") || host.equals("xigua.com")) {
+                return "https://www.ixigua.com/";
+            }
+            if (host.endsWith(".qq.com") || host.equals("qq.com")) {
+                return "https://v.qq.com/";
+            }
+            if (host.endsWith(".mgtv.com") || host.equals("mgtv.com")) {
+                return "https://www.mgtv.com/";
+            }
             if (host.endsWith(".dailymotion.com") || host.equals("dailymotion.com")) {
                 return "https://www.dailymotion.com/";
             }
@@ -332,7 +346,8 @@ public class LoginActivity extends Activity {
                 return "https://www.iqiyi.com/";
             }
 
-            return uri.getScheme() + "://" + host + "/";
+            // Never downgrade a login page to cleartext HTTP.
+            return "https://" + host + "/";
         } catch (Exception ignored) {
             return null;
         }
