@@ -428,7 +428,7 @@ public class DownloadService extends Service {
         } else {
             int maxHeight = preferences.getInt("max_height", 0);
             String format = maxHeight > 0
-                    ? "bv*[height<=" + maxHeight + "]+ba/b[height<=" + maxHeight + "]"
+                    ? "bv*[height=" + maxHeight + "]+ba/b[height=" + maxHeight + "]"
                     : "bv*+ba/b";
             request.addOption("-f", format);
             String videoContainer = preferences.getString("video_container", "mp4");
