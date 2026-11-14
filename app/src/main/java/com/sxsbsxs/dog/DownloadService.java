@@ -165,6 +165,20 @@ public class DownloadService extends Service {
 
             List<File> completedFiles = findCompletedFiles(outputDirectory, before);
             if (completedFiles.isEmpty()) {
+                boolean archiveEnabled = getSharedPreferences(
+                        "dog_settings", Context.MODE_PRIVATE
+                ).getBoolean("skip_existing", false);
+                if (archiveEnabled) {
+                    String message = "没有新文件：视频可能都已下载过，已按下载归档跳过";
+                    DownloadHistoryStore.record(
+                            this, url, "", "", "completed", message);
+                    DownloadState.INSTANCE.completed("", message);
+                    NotificationManager manager = getSystemService(NotificationManager.class);
+                    if (manager != null) {
+                        manager.notify(NOTIFICATION_ID, buildNotification(message, 100, false));
+                    }
+                    return;
+                }
                 throw new IOException("下载任务已结束，但没有找到新的视频或音频文件");
             }
 
