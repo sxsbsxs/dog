@@ -229,6 +229,10 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
     var embedThumbnail by rememberSaveable { mutableStateOf(preferences.getBoolean("embed_thumbnail", true)) }
     var skipExisting by rememberSaveable { mutableStateOf(preferences.getBoolean("skip_existing", false)) }
     var concurrentFragments by rememberSaveable { mutableStateOf(preferences.getInt("concurrent_fragments", 4)) }
+    var previewLoading by remember { mutableStateOf(false) }
+    var preview by remember { mutableStateOf<VideoInfoService.Preview?>(null) }
+    var previewError by remember { mutableStateOf("") }
+    var engineUpdating by remember { mutableStateOf(false) }
     val download by DownloadState.state.collectAsState()
     val loginLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -310,7 +314,11 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
 
                 OutlinedTextField(
                     value = url,
-                    onValueChange = { url = it },
+                    onValueChange = {
+                        url = it
+                        preview = null
+                        previewError = ""
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     shape = RoundedCornerShape(18.dp),
@@ -348,6 +356,76 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                     ),
                     keyboardActions = KeyboardActions(onGo = { startDownload() })
                 )
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = {
+                        val value = url.trim()
+                        if (!isHttpUrl(value)) {
+                            Toast.makeText(context, "请输入有效的视频链接", Toast.LENGTH_SHORT).show()
+                        } else {
+                            previewLoading = true
+                            preview = null
+                            previewError = ""
+                            VideoInfoService.inspect(context, value, object : VideoInfoService.Callback {
+                                override fun onSuccess(result: VideoInfoService.Preview) {
+                                    previewLoading = false
+                                    preview = result
+                                }
+                                override fun onError(message: String) {
+                                    previewLoading = false
+                                    previewError = message
+                                }
+                            })
+                        }
+                    },
+                    enabled = url.isNotBlank() && !previewLoading,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    if (previewLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("正在解析…")
+                    } else {
+                        Text("下载前解析视频信息")
+                    }
+                }
+                if (preview != null) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                        )
+                    ) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text(preview!!.title, fontWeight = FontWeight.SemiBold)
+                            if (preview!!.uploader.isNotBlank()) {
+                                Text("作者：" + preview!!.uploader, style = MaterialTheme.typography.bodySmall)
+                            }
+                            Text(
+                                listOf(preview!!.duration, preview!!.resolution, preview!!.fileSize)
+                                    .filter { it.isNotBlank() && it != "未知" }
+                                    .joinToString(" · "),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                "来源：" + preview!!.extractor,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                if (previewError.isNotBlank()) {
+                    Text(
+                        previewError,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
                 Spacer(Modifier.height(14.dp))
                 Button(
                     onClick = startDownload,
@@ -543,6 +621,30 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                             }
                         }
                     }
+                    OutlinedButton(
+                        onClick = {
+                            engineUpdating = true
+                            EngineUpdateManager.update(context) { message ->
+                                engineUpdating = false
+                                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                            }
+                        },
+                        enabled = !engineUpdating,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (engineUpdating) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("正在检查并更新…")
+                        } else {
+                            Text("检查并更新 yt-dlp 网站解析引擎")
+                        }
+                    }
+                    Text(
+                        "更新只刷新本机 yt-dlp 网站提取器，不会更新 Dog 应用。解析失败的网站可先尝试更新解析引擎。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Text(
                         "默认只下载当前视频；开启播放列表后按顺序下载。跳过已下载功能会在本机记录 yt-dlp 视频 ID。",
                         style = MaterialTheme.typography.bodySmall,
