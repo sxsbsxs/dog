@@ -223,6 +223,12 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
     var maxHeight by rememberSaveable { mutableStateOf(preferences.getInt("max_height", 0)) }
     var downloadSubtitles by rememberSaveable { mutableStateOf(preferences.getBoolean("download_subtitles", false)) }
     var downloadPlaylist by rememberSaveable { mutableStateOf(preferences.getBoolean("download_playlist", false)) }
+    var videoContainer by rememberSaveable { mutableStateOf(preferences.getString("video_container", "mp4") ?: "mp4") }
+    var audioFormat by rememberSaveable { mutableStateOf(preferences.getString("audio_format", "mp3") ?: "mp3") }
+    var subtitleLanguages by rememberSaveable { mutableStateOf(preferences.getString("subtitle_languages", "all") ?: "all") }
+    var embedThumbnail by rememberSaveable { mutableStateOf(preferences.getBoolean("embed_thumbnail", true)) }
+    var skipExisting by rememberSaveable { mutableStateOf(preferences.getBoolean("skip_existing", false)) }
+    var concurrentFragments by rememberSaveable { mutableStateOf(preferences.getInt("concurrent_fragments", 4)) }
     val download by DownloadState.state.collectAsState()
     val loginLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -436,18 +442,23 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
             onDismissRequest = { downloadSettingsDialog = false },
             title = { Text("下载设置") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Text("下载类型", style = MaterialTheme.typography.titleSmall)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(selected = !audioOnly, onClick = { audioOnly = false })
                         Text("视频")
                         Spacer(Modifier.width(16.dp))
                         RadioButton(selected = audioOnly, onClick = { audioOnly = true })
-                        Text("MP3 音频")
+                        Text("音频")
                     }
+
                     if (!audioOnly) {
                         Text("视频清晰度上限", style = MaterialTheme.typography.titleSmall)
-                        listOf(0 to "最高画质", 1080 to "1080p", 720 to "720p", 480 to "480p").forEach { option ->
+                        listOf(0 to "最高画质", 2160 to "4K", 1440 to "1440p", 1080 to "1080p", 720 to "720p", 480 to "480p").forEach { option ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 RadioButton(
                                     selected = maxHeight == option.first,
@@ -456,7 +467,36 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                                 Text(option.second)
                             }
                         }
+                        Text("视频封装格式", style = MaterialTheme.typography.titleSmall)
+                        listOf("mp4" to "MP4（通用）", "mkv" to "MKV（兼容性/字幕）", "webm" to "WebM（开放格式）").forEach { option ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(
+                                    selected = videoContainer == option.first,
+                                    onClick = { videoContainer = option.first }
+                                )
+                                Text(option.second)
+                            }
+                        }
+                    } else {
+                        Text("音频格式", style = MaterialTheme.typography.titleSmall)
+                        listOf("mp3" to "MP3", "m4a" to "M4A", "opus" to "Opus", "flac" to "FLAC").forEach { option ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(
+                                    selected = audioFormat == option.first,
+                                    onClick = { audioFormat = option.first }
+                                )
+                                Text(option.second)
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = embedThumbnail,
+                                onCheckedChange = { embedThumbnail = it }
+                            )
+                            Text("将视频封面嵌入音频")
+                        }
                     }
+
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
                             checked = downloadSubtitles,
@@ -464,6 +504,18 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                         )
                         Text("同时下载字幕（含自动字幕）")
                     }
+                    if (downloadSubtitles) {
+                        OutlinedTextField(
+                            value = subtitleLanguages,
+                            onValueChange = { subtitleLanguages = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            label = { Text("字幕语言") },
+                            placeholder = { Text("all 或 zh-Hans,zh-CN,en") },
+                            supportingText = { Text("输入 all 下载全部语言，或用英文逗号指定语言代码") }
+                        )
+                    }
+
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
                             checked = downloadPlaylist,
@@ -471,13 +523,33 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                         )
                         Text("下载整个播放列表")
                     }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = skipExisting,
+                            onCheckedChange = { skipExisting = it }
+                        )
+                        Text("跳过已经下载过的视频")
+                    }
+
+                    Text("分段并发数", style = MaterialTheme.typography.titleSmall)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        listOf(1 to "省流量", 4 to "均衡", 8 to "高速").forEach { option ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(
+                                    selected = concurrentFragments == option.first,
+                                    onClick = { concurrentFragments = option.first }
+                                )
+                                Text(option.second)
+                            }
+                        }
+                    }
                     Text(
-                        "默认只下载当前视频；开启播放列表后会按顺序下载全部条目，单个条目失败不会中断列表。",
+                        "默认只下载当前视频；开启播放列表后按顺序下载。跳过已下载功能会在本机记录 yt-dlp 视频 ID。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            },
+            }            },
             confirmButton = {
                 TextButton(onClick = {
                     preferences.edit()
@@ -485,6 +557,12 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                         .putInt("max_height", maxHeight)
                         .putBoolean("download_subtitles", downloadSubtitles)
                         .putBoolean("download_playlist", downloadPlaylist)
+                        .putString("video_container", videoContainer)
+                        .putString("audio_format", audioFormat)
+                        .putString("subtitle_languages", subtitleLanguages.trim().ifBlank { "all" })
+                        .putBoolean("embed_thumbnail", embedThumbnail)
+                        .putBoolean("skip_existing", skipExisting)
+                        .putInt("concurrent_fragments", concurrentFragments)
                         .apply()
                     downloadSettingsDialog = false
                     Toast.makeText(context, "下载设置已保存", Toast.LENGTH_SHORT).show()

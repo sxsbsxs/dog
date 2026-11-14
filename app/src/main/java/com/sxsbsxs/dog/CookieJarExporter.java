@@ -16,9 +16,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Exports this app's WebView cookies into yt-dlp's Netscape cookie format.
- * Database rows preserve exact domain/path/expiry metadata; CookieManager is
- * the fallback for Chromium versions that keep values in encrypted_value.
+ * Exports only cookies belonging to the login site and SSO origins visited by
+ * this WebView. It deliberately does not export unrelated cookies from the
+ * shared WebView profile.
  */
 public final class CookieJarExporter {
     private static final String TAG = "DogCookieExport";
@@ -37,42 +37,59 @@ public final class CookieJarExporter {
             String originUrl,
             Set<String> visitedUrls
     ) throws IOException {
+        String originHost = hostOf(originUrl);
+        if (originHost == null) throw new IOException("无法识别登录网站域名，请重新打开授权页面。");
+
+        Set<String> urls = new LinkedHashSet<>();
+        if (visitedUrls != null) urls.addAll(visitedUrls);
+        urls.add(originUrl);
+
+        Set<String> allowedHosts = new LinkedHashSet<>();
+        for (String url : urls) {
+            String host = hostOf(url);
+            if (host != null) allowedHosts.add(host);
+        }
+
         CookieManager manager = CookieManager.getInstance();
         manager.flush();
 
         Map<String, String> rows = new LinkedHashMap<>();
-        Set<String> domains = new LinkedHashSet<>();
         Set<String> fallbackDomains = new LinkedHashSet<>();
-        File databaseFile = new File(
-                context.getDataDir(),
-                "app_webview/Default/Cookies"
-        );
-
-        if (databaseFile.isFile()) {
-            readDatabase(databaseFile, rows, domains, fallbackDomains);
+        File databaseFile = findCookieDatabase(new File(context.getDataDir(), "app_webview"), 0);
+        if (databaseFile != null) {
+            readDatabase(databaseFile, rows, fallbackDomains, allowedHosts);
         } else {
-            Log.i(TAG, "WebView cookie database unavailable; using CookieManager origins");
+            Log.i(TAG, "WebView cookie database unavailable; using CookieManager");
         }
 
-        // Ask WebView for the decrypted cookie header for every login/redirect
-        // origin visited. This also catches cross-domain SSO providers.
-        if (visitedUrls != null) {
-            for (String url : visitedUrls) {
-                addManagerCookies(manager, url, rows);
-            }
+        // CookieManager returns decrypted values, including HttpOnly cookies.
+        // Query each actual visited URL so path-scoped login cookies are retained.
+        for (String url : urls) {
+            addManagerCookies(manager, url, rows, null);
         }
-        addManagerCookies(manager, originUrl, rows);
 
-        // Domain-wide encrypted rows may not have appeared in the visited URL set.
+        // If Chromium stored encrypted_value in SQLite, ask CookieManager for
+        // the decrypted header and preserve the database cookie's domain scope.
         for (String domain : fallbackDomains) {
-            addManagerCookies(manager, "https://" + domain.replaceFirst("^\\.+", "") + "/", rows,
-                    domain);
+            for (String url : urls) {
+                String host = hostOf(url);
+                if (host != null && cookieDomainCoversHost(domain, host)) {
+                    addManagerCookies(manager, url, rows, domain);
+                }
+            }
         }
 
         if (rows.isEmpty()) {
             throw new IOException(
-                    "没有读取到登录 Cookie。请确认网页已登录，并在登录成功后停留几秒再点“完成授权”。" +
-                    "如果网站禁止应用内登录，请使用该网站支持的登录方式。"
+                    "没有读取到网页登录 Cookie。请在网页内完成登录，等待页面加载结束后再点“完成授权”。"
+            );
+        }
+
+        if (!containsCookieForHost(rows.values(), originHost)) {
+            throw new IOException(
+                    "读到了网页 Cookie，但没有发现属于 " + originHost +
+                    " 的登录 Cookie。该网站可能阻止了应用内 WebView 登录，" +
+                    "或者登录尚未完成。请回到网页确认登录状态后重试。"
             );
         }
 
@@ -80,26 +97,67 @@ public final class CookieJarExporter {
                 "# Netscape HTTP Cookie File\n" +
                 "# Generated locally by Dog. Do not share this file.\n"
         );
-        for (String line : rows.values()) {
-            output.append(line).append('\n');
-        }
+        for (String line : rows.values()) output.append(line).append('\n');
         return output.toString();
+    }
+
+    public static int countCookies(String cookieJar) {
+        int count = 0;
+        if (cookieJar == null) return 0;
+        for (String line : cookieJar.split("\n")) {
+            if (isCookieRow(line)) count++;
+        }
+        return count;
+    }
+
+    public static int countDomains(String cookieJar) {
+        Set<String> domains = new LinkedHashSet<>();
+        if (cookieJar == null) return 0;
+        for (String line : cookieJar.split("\n")) {
+            if (!isCookieRow(line)) continue;
+            String[] fields = line.split("\t", -1);
+            if (fields.length >= 7) {
+                String domain = fields[0].startsWith("#HttpOnly_")
+                        ? fields[0].substring("#HttpOnly_".length())
+                        : fields[0];
+                domains.add(domain.toLowerCase(Locale.ROOT));
+            }
+        }
+        return domains.size();
+    }
+
+    private static boolean isCookieRow(String line) {
+        return line != null && !line.isEmpty() &&
+                (!line.startsWith("#") || line.startsWith("#HttpOnly_"));
+    }
+
+    private static File findCookieDatabase(File directory, int depth) {
+        if (directory == null || !directory.isDirectory() || depth > 5) return null;
+        File[] children = directory.listFiles();
+        if (children == null) return null;
+        for (File child : children) {
+            if (child.isFile() && "Cookies".equals(child.getName())) return child;
+        }
+        for (File child : children) {
+            if (child.isDirectory()) {
+                File found = findCookieDatabase(child, depth + 1);
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private static void readDatabase(
             File databaseFile,
             Map<String, String> rows,
-            Set<String> domains,
-            Set<String> fallbackDomains
+            Set<String> fallbackDomains,
+            Set<String> allowedHosts
     ) {
         SQLiteDatabase database = null;
         Cursor cursor = null;
         try {
             database = SQLiteDatabase.openDatabase(
-                    databaseFile.getAbsolutePath(),
-                    null,
-                    SQLiteDatabase.OPEN_READONLY
-            );
+                    databaseFile.getAbsolutePath(), null, SQLiteDatabase.OPEN_READONLY);
             cursor = database.rawQuery("SELECT * FROM cookies", null);
 
             int hostIndex = cursor.getColumnIndex("host_key");
@@ -117,84 +175,101 @@ public final class CookieJarExporter {
 
             long nowSeconds = System.currentTimeMillis() / 1000L;
             while (cursor.moveToNext()) {
-                String host = cursor.getString(hostIndex);
+                String domain = cursor.getString(hostIndex);
                 String name = cursor.getString(nameIndex);
                 String value = cursor.getString(valueIndex);
-                if (host == null || host.isEmpty() || name == null || name.isEmpty()) continue;
+                if (domain == null || domain.isEmpty() || name == null || name.isEmpty()) continue;
+                if (!isRelevantDomain(domain, allowedHosts)) continue;
 
                 long expiry = expiryIndex >= 0 && !cursor.isNull(expiryIndex)
-                        ? toUnixSeconds(cursor.getLong(expiryIndex))
-                        : 0L;
+                        ? toUnixSeconds(cursor.getLong(expiryIndex)) : 0L;
                 if (expiry > 0L && expiry <= nowSeconds) continue;
 
-                String domain = host;
-                domains.add(domain);
-                String path = pathIndex >= 0 ? cursor.getString(pathIndex) : "/";
-                if (path == null || path.isEmpty()) path = "/";
-                boolean secure = secureIndex >= 0 && cursor.getInt(secureIndex) != 0;
-                boolean httpOnly = httpOnlyIndex >= 0 && cursor.getInt(httpOnlyIndex) != 0;
-
-                // Modern Chromium can store the actual cookie in encrypted_value.
                 if (value == null || value.isEmpty()) {
                     fallbackDomains.add(domain);
                     continue;
                 }
 
+                String path = pathIndex >= 0 ? cursor.getString(pathIndex) : "/";
+                if (path == null || path.isEmpty()) path = "/";
+                boolean secure = secureIndex >= 0 && cursor.getInt(secureIndex) != 0;
+                boolean httpOnly = httpOnlyIndex >= 0 && cursor.getInt(httpOnlyIndex) != 0;
                 putCookie(rows, domain, path, secure, expiry, name, value, httpOnly);
             }
         } catch (Exception failure) {
-            // CookieManager below is independent of the on-disk SQLite schema and
-            // can still return decrypted cookies for pages visited in this session.
-            Log.w(TAG, "Could not read WebView cookie database; using CookieManager fallback", failure);
+            Log.w(TAG, "Could not read WebView cookie database; using CookieManager", failure);
         } finally {
             if (cursor != null) cursor.close();
             if (database != null) database.close();
         }
     }
 
+    private static boolean isRelevantDomain(String cookieDomain, Set<String> allowedHosts) {
+        for (String host : allowedHosts) {
+            if (cookieDomainCoversHost(cookieDomain, host)) return true;
+        }
+        return false;
+    }
+
+    private static boolean cookieDomainCoversHost(String cookieDomain, String host) {
+        if (cookieDomain == null || host == null) return false;
+        String normalized = cookieDomain.toLowerCase(Locale.ROOT);
+        boolean includeSubdomains = normalized.startsWith(".");
+        String bareDomain = includeSubdomains ? normalized.substring(1) : normalized;
+        String normalizedHost = host.toLowerCase(Locale.ROOT);
+        return normalizedHost.equals(bareDomain) ||
+                (includeSubdomains && normalizedHost.endsWith("." + bareDomain));
+    }
+
+    private static boolean containsCookieForHost(Iterable<String> cookieRows, String host) {
+        for (String line : cookieRows) {
+            String[] fields = line.split("\t", -1);
+            if (fields.length < 7) continue;
+            String domain = fields[0].startsWith("#HttpOnly_")
+                    ? fields[0].substring("#HttpOnly_".length())
+                    : fields[0];
+            if (cookieDomainCoversHost(domain, host)) return true;
+        }
+        return false;
+    }
+
     private static long toUnixSeconds(long storedExpiry) {
         if (storedExpiry <= 0L) return 0L;
-        // Chromium stores expires_utc as microseconds since 1601-01-01.
         if (storedExpiry > 100000000000L) {
             return storedExpiry / 1000000L - WINDOWS_EPOCH_OFFSET_SECONDS;
         }
         return storedExpiry;
     }
 
-    private static void addManagerCookies(
-            CookieManager manager,
-            String url,
-            Map<String, String> rows
-    ) {
-        addManagerCookies(manager, url, rows, null);
-    }
-
-    private static void addManagerCookies(
-            CookieManager manager,
-            String url,
-            Map<String, String> rows,
-            String forcedDomain
-    ) {
-        if (url == null || url.isEmpty()) return;
+    private static String hostOf(String url) {
+        if (url == null || url.isEmpty()) return null;
         try {
             Uri uri = Uri.parse(url);
             String scheme = uri.getScheme();
             String host = uri.getHost();
             if (host == null || host.isEmpty() ||
                     (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))) {
-                return;
+                return null;
             }
+            return host.toLowerCase(Locale.ROOT);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
 
+    private static void addManagerCookies(
+            CookieManager manager, String url, Map<String, String> rows, String forcedDomain
+    ) {
+        String host = hostOf(url);
+        if (host == null) return;
+        try {
             String header = manager.getCookie(url);
             if (header == null || header.trim().isEmpty()) return;
 
+            Uri uri = Uri.parse(url);
             String domain = forcedDomain == null ? host : forcedDomain;
-            // CookieManager.getCookie() returns no Path metadata. Use "/" so a
-            // cookie read from /login remains usable on the site's video URLs.
-            // Domain scope stays host-only unless the SQLite row supplied it.
             String path = "/";
-            boolean secure = "https".equalsIgnoreCase(scheme);
-
+            boolean secure = "https".equalsIgnoreCase(uri.getScheme());
             for (String part : header.split(";")) {
                 String item = part.trim();
                 int equals = item.indexOf('=');
@@ -205,8 +280,7 @@ public final class CookieJarExporter {
                 putCookie(rows, domain, path, secure, 0L, name, value, false);
             }
         } catch (Exception failure) {
-            // Never include cookie values in diagnostic output.
-            Log.w(TAG, "Could not read cookies for a WebView origin", failure);
+            Log.w(TAG, "Could not read cookies for a visited WebView origin", failure);
         }
     }
 
@@ -237,8 +311,6 @@ public final class CookieJarExporter {
                 name + "\t" +
                 value;
         String key = domain.toLowerCase(Locale.ROOT) + "\n" + path + "\n" + name;
-
-        // Prefer the database row: it has exact path/domain/expiry and HttpOnly scope.
         rows.putIfAbsent(key, line);
     }
 }

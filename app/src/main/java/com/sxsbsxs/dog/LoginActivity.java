@@ -264,12 +264,15 @@ public class LoginActivity extends Activity {
             try {
                 String cookieFile = CookieJarExporter.export(
                         getApplicationContext(), loginUrl, visitedUrls);
+                int cookieCount = CookieJarExporter.countCookies(cookieFile);
+                int domainCount = CookieJarExporter.countDomains(cookieFile);
                 SecureCookieStore.saveCookieJar(getApplicationContext(), cookieFile);
                 runOnUiThread(() -> {
                     setResult(Activity.RESULT_OK);
                     Toast.makeText(
                             this,
-                            "网页登录授权已保存，下载时会自动使用",
+                            "授权已保存：" + cookieCount + " 个 Cookie，来自 " +
+                                    domainCount + " 个相关域名",
                             Toast.LENGTH_LONG
                     ).show();
                     finish();

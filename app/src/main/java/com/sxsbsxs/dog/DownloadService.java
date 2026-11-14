@@ -283,7 +283,6 @@ public class DownloadService extends Service {
         request.addOption("--retries", "10");
         request.addOption("--fragment-retries", "10");
         request.addOption("--file-access-retries", "3");
-        request.addOption("--concurrent-fragments", "4");
         request.addOption("--embed-metadata");
 
         android.content.SharedPreferences preferences =
@@ -291,27 +290,48 @@ public class DownloadService extends Service {
         boolean audioOnly = preferences.getBoolean("audio_only", false);
         boolean downloadSubtitles = preferences.getBoolean("download_subtitles", false);
         boolean downloadPlaylist = preferences.getBoolean("download_playlist", false);
+        int concurrentFragments = Math.max(1, Math.min(8, preferences.getInt("concurrent_fragments", 4)));
+        request.addOption("--concurrent-fragments", Integer.toString(concurrentFragments));
+        if (preferences.getBoolean("skip_existing", false)) {
+            request.addOption("--download-archive", new File(getFilesDir(), "download-archive.txt").getAbsolutePath());
+        }
         request.addOption(downloadPlaylist ? "--yes-playlist" : "--no-playlist");
         if (downloadPlaylist) request.addOption("--no-abort-on-error");
         if (audioOnly) {
             request.addOption("-f", "ba/b");
             request.addOption("-x");
-            request.addOption("--audio-format", "mp3");
+            String audioFormat = preferences.getString("audio_format", "mp3");
+            if (!"mp3".equals(audioFormat) && !"m4a".equals(audioFormat) &&
+                    !"opus".equals(audioFormat) && !"flac".equals(audioFormat)) {
+                audioFormat = "mp3";
+            }
+            request.addOption("--audio-format", audioFormat);
             request.addOption("--audio-quality", "0");
-            request.addOption("--embed-thumbnail");
+            if (preferences.getBoolean("embed_thumbnail", true)) {
+                request.addOption("--embed-thumbnail");
+            }
         } else {
             int maxHeight = preferences.getInt("max_height", 0);
             String format = maxHeight > 0
                     ? "bv*[height<=" + maxHeight + "]+ba/b[height<=" + maxHeight + "]"
                     : "bv*+ba/b";
             request.addOption("-f", format);
-            request.addOption("--merge-output-format", "mp4");
+            String videoContainer = preferences.getString("video_container", "mp4");
+            if (!"mp4".equals(videoContainer) && !"mkv".equals(videoContainer) &&
+                    !"webm".equals(videoContainer)) {
+                videoContainer = "mp4";
+            }
+            request.addOption("--merge-output-format", videoContainer);
         }
 
         if (downloadSubtitles) {
             request.addOption("--write-subs");
             request.addOption("--write-auto-subs");
-            request.addOption("--sub-langs", "all");
+            String subtitleLanguages = preferences.getString("subtitle_languages", "all");
+            if (subtitleLanguages == null || subtitleLanguages.trim().isEmpty()) {
+                subtitleLanguages = "all";
+            }
+            request.addOption("--sub-langs", subtitleLanguages.trim());
             if (!audioOnly) request.addOption("--embed-subs");
         }
 
