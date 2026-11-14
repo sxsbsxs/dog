@@ -120,25 +120,25 @@ public final class SecureCookieStore {
         addCookieRows(rows, incoming);
 
         StringBuilder merged = new StringBuilder(COOKIE_FILE_HEADER)
-                .append("\\n# Combined locally by Dog. Do not share this file.\\n");
+                .append("\n# Combined locally by Dog. Do not share this file.\n");
         for (String row : rows.values()) {
-            merged.append(row).append('\\n');
+            merged.append(row).append('\n');
         }
         return merged.toString();
     }
 
     private static void addCookieRows(Map<String, String> rows, String jar) {
         if (jar == null || jar.isEmpty()) return;
-        for (String line : jar.split("\\n")) {
+        for (String line : jar.split("\n")) {
             if (line.isEmpty() || line.startsWith("#")) continue;
-            String[] fields = line.split("\\t", -1);
+            String[] fields = line.split("\t", -1);
             if (fields.length < 7) continue;
 
             String domain = fields[0].startsWith("#HttpOnly_")
                     ? fields[0].substring("#HttpOnly_".length())
                     : fields[0];
-            String key = domain.toLowerCase(java.util.Locale.ROOT) + "\\n" +
-                    fields[2] + "\\n" + fields[5];
+            String key = domain.toLowerCase(java.util.Locale.ROOT) + "\n" +
+                    fields[2] + "\n" + fields[5];
             rows.put(key, line);
         }
     }
