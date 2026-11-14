@@ -15,7 +15,11 @@ object DownloadState {
     private val mutableState = MutableStateFlow(DownloadUiState())
     val state = mutableState.asStateFlow()
 
-    fun started(queuedCount: Int = 0) {
+    fun started() {
+        started(0)
+    }
+
+    fun started(queuedCount: Int) {
         mutableState.value = DownloadUiState(
             running = true,
             message = if (queuedCount > 0) "正在准备下载 · 后面还有 $queuedCount 个任务" else "正在准备下载…",
