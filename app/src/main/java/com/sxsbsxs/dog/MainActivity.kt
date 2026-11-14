@@ -549,7 +549,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            }            },
+            },
             confirmButton = {
                 TextButton(onClick = {
                     preferences.edit()
