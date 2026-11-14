@@ -149,8 +149,7 @@ public final class SecureCookieStore {
                 .remove(LEGACY_KEY)
                 .apply();
         CookieManager manager = CookieManager.getInstance();
-        manager.removeAllCookies(null);
-        manager.flush();
+        manager.removeAllCookies(removed -> manager.flush());
     }
 
     private static SharedPreferences preferences(Context context) {
