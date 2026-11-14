@@ -312,6 +312,7 @@ public class DownloadService extends Service {
 
     private Notification buildNotification(String message, int progress, boolean ongoing) {
         Intent openIntent = new Intent(this, MainActivity.class);
+        openIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent openPendingIntent = PendingIntent.getActivity(
                 this, 0, openIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
