@@ -1,62 +1,63 @@
 #!/usr/bin/env python3
-"""Check that the Android APK contains the native libraries Dog needs."""
+"""Validate that each APK ABI carries the Python and native media runtime."""
 
 from __future__ import annotations
 
+import argparse
 import sys
 import zipfile
+from collections import defaultdict
 from pathlib import Path
 
-REQUIRED_LIBRARIES = {
-    "libpython.so",   # CPython runtime used by yt-dlp
-    "libqjs.so",      # JavaScript runtime used by yt-dlp extractors
-    "libffmpeg.so",   # FFmpeg native media processing runtime
-    "libaria2c.so",   # aria2 external downloader
-    "libdogmedia.so", # Dog's own C++ JNI helper
+# Names match the upstream youtubedl-android AAR packaging:
+# libpython.so + libpython.zip.so, QuickJS, and zipped FFmpeg/aria2c runtimes.
+REQUIRED_PER_ABI = {
+    "libpython.so",
+    "libpython.zip.so",
+    "libqjs.so",
+    "libffmpeg.zip.so",
+    "libaria2c.zip.so",
+    "libdogmedia.so",
 }
 
 
-def main() -> int:
-    if len(sys.argv) != 2:
-        print("Usage: check_native_runtime.py path/to/app-debug.apk", file=sys.stderr)
-        return 2
-
-    apk = Path(sys.argv[1])
+def inspect_apk(apk: Path) -> int:
     if not apk.is_file():
         print(f"APK not found: {apk}", file=sys.stderr)
         return 2
 
+    found: dict[str, set[str]] = defaultdict(set)
     with zipfile.ZipFile(apk) as archive:
-        names = set(archive.namelist())
+        for entry in archive.namelist():
+            parts = entry.split("/")
+            if len(parts) == 3 and parts[0] == "lib":
+                found[parts[1]].add(parts[2])
 
-    abi_dirs = sorted({
-        name.split("/")[1]
-        for name in names
-        if name.startswith("lib/") and name.count("/") >= 2
-    })
-    if not abi_dirs:
-        print("No native ABI directories found in APK", file=sys.stderr)
+    if not found:
+        print("APK contains no native Android ABI libraries.", file=sys.stderr)
         return 1
 
     failures: list[str] = []
-    for abi in abi_dirs:
-        present = {
-            Path(name).name
-            for name in names
-            if name.startswith(f"lib/{abi}/")
-        }
-        missing = sorted(REQUIRED_LIBRARIES - present)
+    for abi in sorted(found):
+        missing = sorted(REQUIRED_PER_ABI - found[abi])
         if missing:
             failures.append(f"{abi}: missing {', '.join(missing)}")
         else:
-            print(f"{abi}: Python, QuickJS, FFmpeg, aria2c and dogmedia OK")
+            print(f"{abi}: CPython + QuickJS + FFmpeg + aria2c + dogmedia OK")
 
     if failures:
         print("\n".join(failures), file=sys.stderr)
         return 1
 
-    print(f"Verified {len(abi_dirs)} Android ABI(s).")
+    print(f"Validated {len(found)} ABI directories in {apk.name}.")
     return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("apk", type=Path)
+    args = parser.parse_args()
+    return inspect_apk(args.apk)
 
 
 if __name__ == "__main__":
