@@ -6,6 +6,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -35,6 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -75,6 +78,9 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     private var sharedUrl by mutableStateOf<String?>(null)
@@ -148,6 +154,45 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private data class DownloadHistoryItem(
+    val fileName: String,
+    val source: String,
+    val time: String,
+    val statusLabel: String,
+    val location: String,
+    val message: String
+)
+
+private fun parseDownloadHistory(json: String): List<DownloadHistoryItem> {
+    return runCatching {
+        val array = org.json.JSONArray(json)
+        val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+        buildList {
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                val status = item.optString("status")
+                val statusLabel = when (status) {
+                    "completed" -> "已完成"
+                    "saved_private" -> "已完成（应用目录）"
+                    "failed" -> "失败"
+                    "canceled" -> "已取消"
+                    else -> status
+                }
+                add(
+                    DownloadHistoryItem(
+                        fileName = item.optString("fileName"),
+                        source = item.optString("source"),
+                        time = formatter.format(Date(item.optLong("timestamp"))),
+                        statusLabel = statusLabel,
+                        location = item.optString("location"),
+                        message = item.optString("message")
+                    )
+                )
+            }
+        }
+    }.getOrDefault(emptyList())
+}
+
 private fun isHttpUrl(value: String): Boolean =
     value.startsWith("https://", ignoreCase = true) ||
         value.startsWith("http://", ignoreCase = true)
@@ -167,6 +212,8 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
     var url by rememberSaveable { mutableStateOf(initialUrl.orEmpty()) }
     var hasCookieJar by remember { mutableStateOf(SecureCookieStore.hasCookieJar(context)) }
     var cookieDialog by remember { mutableStateOf(false) }
+    var historyDialog by remember { mutableStateOf(false) }
+    var historyJson by remember { mutableStateOf(DownloadHistoryStore.read(context)) }
     val download by DownloadState.state.collectAsState()
     val loginLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -187,6 +234,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
             Toast.makeText(context, "请输入有效的视频链接", Toast.LENGTH_SHORT).show()
         } else {
             onDownload(value)
+            url = ""
         }
     }
 
@@ -196,6 +244,12 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                 CenterAlignedTopAppBar(
                     title = { Text("Dog", fontWeight = FontWeight.Bold) },
                     actions = {
+                        IconButton(onClick = {
+                            historyJson = DownloadHistoryStore.read(context)
+                            historyDialog = true
+                        }) {
+                            Icon(Icons.Default.History, contentDescription = "下载记录")
+                        }
                         IconButton(onClick = { cookieDialog = true }) {
                             Icon(Icons.Default.Settings, contentDescription = "账号授权")
                         }
@@ -279,14 +333,14 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                 Spacer(Modifier.height(14.dp))
                 Button(
                     onClick = startDownload,
-                    enabled = url.isNotBlank() && !download.running,
+                    enabled = url.isNotBlank(),
                     modifier = Modifier.fillMaxWidth().height(54.dp),
                     shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors()
                 ) {
                     Icon(Icons.Default.Download, contentDescription = null)
                     Spacer(Modifier.width(10.dp))
-                    Text("开始下载", fontWeight = FontWeight.SemiBold)
+                    Text(if (download.running) "加入下载队列" else "开始下载", fontWeight = FontWeight.SemiBold)
                 }
 
                 Spacer(Modifier.height(24.dp))
@@ -355,6 +409,72 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                 Spacer(Modifier.height(16.dp))
             }
         }
+    }
+
+    if (historyDialog) {
+        val historyItems = remember(historyJson) { parseDownloadHistory(historyJson) }
+        AlertDialog(
+            onDismissRequest = { historyDialog = false },
+            title = { Text("下载记录") },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 460.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (historyItems.isEmpty()) {
+                        Text(
+                            "还没有下载记录。完成或失败的任务会自动保存在这里。",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    historyItems.forEach { item ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                            )
+                        ) {
+                            Column(Modifier.padding(12.dp)) {
+                                Text(
+                                    item.fileName.ifBlank { item.message.ifBlank { "下载任务" } },
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    listOf(item.source, item.time, item.statusLabel)
+                                        .filter { it.isNotBlank() }.joinToString(" · "),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (item.location.startsWith("content://")) {
+                                    TextButton(onClick = {
+                                        runCatching {
+                                            val uri = Uri.parse(item.location)
+                                            val mime = context.contentResolver.getType(uri) ?: "*/*"
+                                            val openIntent = Intent(Intent.ACTION_VIEW)
+                                                .setDataAndType(uri, mime)
+                                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            context.startActivity(openIntent)
+                                        }.onFailure {
+                                            Toast.makeText(context, "无法打开该文件", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }) { Text("打开文件") }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { historyDialog = false }) { Text("关闭") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    DownloadHistoryStore.clear(context)
+                    historyJson = "[]"
+                }, enabled = historyItems.isNotEmpty()) { Text("清空记录") }
+            }
+        )
     }
 
     if (cookieDialog) {
