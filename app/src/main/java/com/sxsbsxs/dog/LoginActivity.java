@@ -30,6 +30,8 @@ import androidx.annotation.Nullable;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -41,6 +43,7 @@ public class LoginActivity extends Activity {
     public static final String EXTRA_TARGET_URL = "target_url";
 
     private final ExecutorService exporter = Executors.newSingleThreadExecutor();
+    private final Set<String> visitedUrls = ConcurrentHashMap.newKeySet();
     private WebView webView;
     private ProgressBar progressBar;
     private TextView statusText;
@@ -63,6 +66,7 @@ public class LoginActivity extends Activity {
             return;
         }
 
+        visitedUrls.add(loginUrl);
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
 
@@ -148,8 +152,15 @@ public class LoginActivity extends Activity {
             }
 
             @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                super.onPageStarted(view, url, favicon);
+                rememberVisitedUrl(url);
+            }
+
+            @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+                rememberVisitedUrl(url);
                 CookieManager.getInstance().flush();
                 if (!popup && statusText != null && !saving) {
                     statusText.setText("网页已加载。登录成功后点击“完成授权”；不支持内嵌登录的网站可能会提示使用其他浏览器。");
@@ -219,7 +230,7 @@ public class LoginActivity extends Activity {
         exporter.execute(() -> {
             try {
                 String cookieFile = CookieJarExporter.export(
-                        getApplicationContext(), loginUrl);
+                        getApplicationContext(), loginUrl, visitedUrls);
                 SecureCookieStore.saveCookieJar(getApplicationContext(), cookieFile);
                 runOnUiThread(() -> {
                     setResult(Activity.RESULT_OK);
@@ -236,6 +247,23 @@ public class LoginActivity extends Activity {
                 showSaveError("授权信息保存失败：" + failure.getMessage());
             }
         });
+    }
+
+    private void rememberVisitedUrl(String value) {
+        if (value == null || value.isEmpty()) return;
+        try {
+            Uri uri = Uri.parse(value);
+            String scheme = uri.getScheme();
+            String host = uri.getHost();
+            if (host == null || host.isEmpty() ||
+                    (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))) {
+                return;
+            }
+            String path = uri.getPath();
+            visitedUrls.add(scheme + "://" + host + (path == null || path.isEmpty() ? "/" : path));
+        } catch (Exception ignored) {
+            // Ignore non-web navigation and malformed redirect URLs.
+        }
     }
 
     private void showSaveError(String message) {
