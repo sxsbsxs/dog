@@ -82,10 +82,9 @@ public class DownloadService extends Service {
     }
 
     private void runDownload(String url, int startId) {
-        File outputDirectory = getDownloadDirectory();
-        Map<String, String> before = snapshotFiles(outputDirectory);
-
         try {
+            File outputDirectory = getDownloadDirectory();
+            Map<String, String> before = snapshotFiles(outputDirectory);
             YtDlpEngine.initialize(getApplicationContext());
 
             YoutubeDLRequest request = buildRequest(url, outputDirectory);
@@ -123,13 +122,12 @@ public class DownloadService extends Service {
 
             List<File> completedFiles = findCompletedFiles(outputDirectory, before);
             int publishedCount = 0;
-            List<String> publishErrors = new ArrayList<>();
             for (File file : completedFiles) {
                 try {
                     MediaStorePublisher.publish(this, file);
                     publishedCount++;
-                } catch (Exception error) {
-                    publishErrors.add(file.getName() + ": " + error.getMessage());
+                } catch (Exception ignored) {
+                    // Keep the original private download available if public publishing fails.
                 }
             }
 
