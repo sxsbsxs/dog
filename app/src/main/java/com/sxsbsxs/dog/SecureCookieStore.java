@@ -13,6 +13,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -103,11 +105,42 @@ public final class SecureCookieStore {
         }
 
         // Once a new website login is saved, remove the old unrestricted Cookie header.
+        String previous = loadCookieJar(context);
+        String merged = mergeCookieJars(previous, value);
         preferences(context).edit()
-                .putString(COOKIE_JAR_KEY, encrypt(value))
+                .putString(COOKIE_JAR_KEY, encrypt(merged))
                 .remove(ENCRYPTED_KEY)
                 .remove(LEGACY_KEY)
                 .apply();
+    }
+
+    private static String mergeCookieJars(String previous, String incoming) {
+        Map<String, String> rows = new LinkedHashMap<>();
+        addCookieRows(rows, previous);
+        addCookieRows(rows, incoming);
+
+        StringBuilder merged = new StringBuilder(COOKIE_FILE_HEADER)
+                .append("\\n# Combined locally by Dog. Do not share this file.\\n");
+        for (String row : rows.values()) {
+            merged.append(row).append('\\n');
+        }
+        return merged.toString();
+    }
+
+    private static void addCookieRows(Map<String, String> rows, String jar) {
+        if (jar == null || jar.isEmpty()) return;
+        for (String line : jar.split("\\n")) {
+            if (line.isEmpty() || line.startsWith("#")) continue;
+            String[] fields = line.split("\\t", -1);
+            if (fields.length < 7) continue;
+
+            String domain = fields[0].startsWith("#HttpOnly_")
+                    ? fields[0].substring("#HttpOnly_".length())
+                    : fields[0];
+            String key = domain.toLowerCase(java.util.Locale.ROOT) + "\\n" +
+                    fields[2] + "\\n" + fields[5];
+            rows.put(key, line);
+        }
     }
 
     public static synchronized File createTemporaryCookieFile(Context context) throws IOException {
