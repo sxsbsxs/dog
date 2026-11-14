@@ -318,31 +318,31 @@ public class LoginActivity extends Activity {
                     !"https".equalsIgnoreCase(uri.getScheme())) return null;
 
             if (host.equals("youtu.be") || host.endsWith(".youtube.com") || host.equals("youtube.com")) {
-                return "https://www.youtube.com/";
+                return "https://www.youtube.com/signin";
             }
             if (host.equals("b23.tv") || host.endsWith(".bilibili.com") || host.equals("bilibili.com")) {
-                return "https://www.bilibili.com/";
+                return "https://passport.bilibili.com/login";
             }
             if (host.endsWith(".douyin.com") || host.equals("douyin.com") ||
                     host.endsWith(".iesdouyin.com") || host.equals("iesdouyin.com")) {
-                return "https://www.douyin.com/";
+                return "https://www.douyin.com/passport/web/login/";
             }
             if (host.endsWith(".tiktok.com") || host.equals("tiktok.com")) {
-                return "https://www.tiktok.com/";
+                return "https://www.tiktok.com/login";
             }
             if (host.endsWith(".kuaishou.com") || host.equals("kuaishou.com")) {
                 return "https://www.kuaishou.com/";
             }
             if (host.endsWith(".instagram.com") || host.equals("instagram.com")) {
-                return "https://www.instagram.com/";
+                return "https://www.instagram.com/accounts/login/";
             }
             if (host.equals("twitter.com") || host.endsWith(".twitter.com") ||
                     host.equals("x.com") || host.endsWith(".x.com")) {
-                return "https://x.com/";
+                return "https://x.com/i/flow/login";
             }
             if (host.endsWith(".facebook.com") || host.equals("facebook.com") ||
                     host.equals("fb.watch")) {
-                return "https://www.facebook.com/";
+                return "https://www.facebook.com/login/";
             }
             if (host.endsWith(".vimeo.com") || host.equals("vimeo.com")) {
                 return "https://vimeo.com/";
@@ -352,7 +352,7 @@ public class LoginActivity extends Activity {
             }
             if (host.endsWith(".weibo.com") || host.equals("weibo.com") ||
                     host.endsWith(".weibo.cn") || host.equals("weibo.cn")) {
-                return "https://weibo.com/";
+                return "https://passport.weibo.com/sso/signin";
             }
             if (host.endsWith(".ixigua.com") || host.equals("ixigua.com") ||
                     host.endsWith(".xigua.com") || host.equals("xigua.com")) {
