@@ -1,52 +1,53 @@
-# Dog Downloader
+# Dog 下载器
 
-一个面向 Android 的轻量级视频 / 音频下载器。项目参考 Seal 的产品思路，使用 yt-dlp 作为解析与下载引擎，并在设备本地完成下载，不依赖自建服务器。
+Dog 是一款 Android 视频下载工具，交互参考 Seal（https://github.com/JunkFood02/Seal），下载解析由 yt-dlp（https://github.com/yt-dlp/yt-dlp）驱动。
 
-## 当前实现
+## 已提交的功能
 
-- 单输入框：粘贴视频或播放列表链接，点击下载即可。
-- yt-dlp 引擎：使用 `youtubedl-android` Android 运行时封装，APK 内运行 Python 与 yt-dlp。
-- FFmpeg：支持 yt-dlp 的音视频合并与后处理。
-- 本地 Cookie：可在右上角 Cookie 设置中粘贴 Cookie 请求头；仅保存在应用私有偏好设置中，并在本机传递给下载引擎。
-- 前台下载服务：切换应用后继续下载，显示系统通知与实时进度。
-- 最高可用画质：默认优先选择最佳视频流和音频流并合并。
-- 播放列表：保留 yt-dlp 对播放列表链接的默认处理能力。
+- 首页只保留一个视频链接输入框和「开始下载」按钮。
+- 使用 Android 版 yt-dlp 运行时解析链接，优先选择最佳可用视频与音频流。
+- 集成 FFmpeg，用于合并分离的视频和音频流。
+- 可选 Cookie：在右上角设置中粘贴浏览器 Cookie，请求时发给对应的视频网站。
+- 前台下载服务、系统通知、下载进度与取消入口。
+- 支持系统分享菜单将网页链接交给 Dog。
+- 无自建服务器，解析和下载在 Android 设备本地执行。
 
-## 技术栈
+## 实现方式
 
+本项目没有把桌面版 yt-dlp 的 Python 源码逐文件翻译成 Kotlin。Android APK 使用上游 youtubedl-android 运行时，将 Python、yt-dlp 以及 Android 原生依赖打包进应用，再由 Kotlin 调用 yt-dlp。这样复用 yt-dlp 的站点提取器和命令行功能。
+
+主要依赖：
+- io.github.junkfood02.youtubedl-android:library:0.18.1
+- io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1
 - Kotlin、Jetpack Compose、Material 3
-- Android Gradle Plugin
-- `io.github.junkfood02.youtubedl-android`（yt-dlp Android wrapper）
-- FFmpeg Android runtime
 
-这不是把桌面版 yt-dlp 的 Python 源码逐文件改写成 Kotlin。Android 版通过上游 Android wrapper 将 Python 运行时、yt-dlp 可执行脚本和所需原生组件打包到 APK，并调用 yt-dlp 的命令行参数执行下载。这样可以复用 yt-dlp 的站点提取器与更新机制。
+## 构建 APK
 
-## 构建
+环境：Android Studio、Android SDK Platform 35、JDK 17。
 
-1. 使用 Android Studio 打开仓库。
-2. 安装 Android SDK Platform 35 和 JDK 17。
-3. 等待 Gradle 同步完成。
-4. 运行 `app` 的 debug 变体，或执行：
+执行：
 
-   ```bash
-   ./gradlew :app:assembleDebug
-   ```
+    ./gradlew :app:assembleDebug
 
-APK 输出位置：`app/build/outputs/apk/debug/app-debug.apk`
+APK 输出：app/build/outputs/apk/debug/app-debug.apk。
 
-## 下载位置
+GitHub Actions 已配置 Android Debug 构建，推送到 main 或提交 Pull Request 时会构建并上传 APK Artifact。
 
-下载文件保存在应用专属外部下载目录：`Android/data/com.sxsbsxs.dog/files/Download/Dog`。此目录由系统沙盒管理，不需要申请广泛存储权限。
+## 保存位置
 
-## Cookie 使用
+文件保存在应用专属目录：
 
-Cookie 是可选项。只有遇到登录后才能访问的内容或需要账号可用画质时才需要设置。请只粘贴自己账号的 Cookie，不要分享给他人。Cookie 存储在本应用私有数据中；清除应用数据或在设置中清空 Cookie 即可删除。
+    Android/data/com.sxsbsxs.dog/files/Download/Dog
 
-## 许可与致谢
+## Cookie 提醒
 
-- 本项目按 GPL-3.0-or-later 发布。
-- 视频提取和下载由 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 提供。
-- Android 适配层使用 [youtubedl-android](https://github.com/yausername/youtubedl-android)。
-- 产品交互思路参考 [Seal](https://github.com/JunkFood02/Seal)，未使用 Seal 品牌或复制其应用源码。
+Cookie 是可选的，只在目标网站要求登录或账号权限影响可用画质时填写。Cookie 保存在应用私有偏好设置中；下载时会随请求发送给目标网站。不要把自己的 Cookie 发给其他人。
+
+## 许可证与致谢
+
+- Dog 项目代码：GPL-3.0。
+- yt-dlp：The Unlicense，许可文本位于 LICENSES/yt-dlp-UNLICENSE。
+- Android 运行时：youtubedl-android（https://github.com/yausername/youtubedl-android）。
+- UI 与产品思路参考 Seal（https://github.com/JunkFood02/Seal）。Dog 未使用 Seal 的名称、图标或应用源码。
 
 请仅下载你有权保存的内容，并遵守来源网站的服务条款及当地法律。
