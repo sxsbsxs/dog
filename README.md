@@ -10,7 +10,7 @@ Dog 是一款 Android 视频下载工具，交互参考 [Seal](https://github.co
 | --- | --- | --- |
 | Kotlin | app UI | Jetpack Compose 界面与 UI 状态订阅 |
 | Java | app runtime | 下载 Service、yt-dlp 请求配置、Cookie 注入、下载进度、取消、Android MediaStore 文件发布和复制完整性校验 |
-| Python | yt-dlp runtime / CI | 上游 CPython 运行 yt-dlp 网站提取器；Python 工具验证 APK 中各 ABI 的运行时组件 |
+| Python | yt-dlp runtime / CI | 上游 CPython 运行 yt-dlp 网站提取器；Python 工具验证 APK 中各 ABI 的运行时组件，并与 Python zlib 对照测试 C 校验实现 |
 | C | native media | 流式读取媒体文件并计算 IEEE CRC-32 校验值 |
 | C++ | Android NDK / JNI | 媒体文件签名识别、JNI 桥接和 C 校验函数调用；FFmpeg/aria2c 使用 Android 原生运行时 |
 
@@ -39,15 +39,15 @@ Dog 是一款 Android 视频下载工具，交互参考 [Seal](https://github.co
 
 ## 构建
 
-环境：Android Studio、Android SDK Platform 35、JDK 17、Android NDK 27、CMake 3.22.1、Python 3.12（CI 校验工具）。
+环境：Android Studio、Android SDK Platform 35、JDK 17、Android NDK 27、CMake 3.22.1、Python 3.12。
 
     ./gradlew :app:assembleDebug
 
 APK：app/build/outputs/apk/debug/app-debug.apk。
 
-GitHub Actions 会构建 APK，并运行 Python 检查各 ABI 是否包含 CPython、QuickJS、FFmpeg、aria2c 和 Dog JNI 原生模块。
+GitHub Actions 会先用 Python 与 zlib 对照测试 C 校验代码，再构建 APK，并检查各 ABI 是否包含 CPython、QuickJS、FFmpeg、aria2c 和 Dog JNI 原生模块。成功后可从 Actions 的 Artifacts 获取 APK。
 
-## 许可
+## 许可证
 
 Dog 项目代码采用 GPL-3.0。yt-dlp 使用 The Unlicense，文本位于 LICENSES/yt-dlp-UNLICENSE。Android yt-dlp runtime、FFmpeg 和 aria2c 的许可与二进制通知请参考各上游项目。Seal 仅作为产品交互和架构参考，未使用其品牌或应用源码。
 
