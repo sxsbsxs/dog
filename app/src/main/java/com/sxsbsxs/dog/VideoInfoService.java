@@ -5,9 +5,15 @@ import android.content.Context;
 import com.yausername.youtubedl_android.YoutubeDL;
 import com.yausername.youtubedl_android.YoutubeDLRequest;
 import com.yausername.youtubedl_android.mapper.VideoInfo;
+import com.yausername.youtubedl_android.mapper.VideoFormat;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -26,9 +32,11 @@ public final class VideoInfoService {
         public final String fileSize;
         public final String extractor;
         public final String thumbnail;
+        public final List<QualityOption> qualities;
 
         Preview(String title, String uploader, String duration, String resolution,
-                String fileSize, String extractor, String thumbnail) {
+                String fileSize, String extractor, String thumbnail,
+                List<QualityOption> qualities) {
             this.title = title;
             this.uploader = uploader;
             this.duration = duration;
@@ -36,6 +44,19 @@ public final class VideoInfoService {
             this.fileSize = fileSize;
             this.extractor = extractor;
             this.thumbnail = thumbnail;
+            this.qualities = Collections.unmodifiableList(new ArrayList<>(qualities));
+        }
+    }
+
+    public static final class QualityOption {
+        public final int height;
+        public final int fps;
+        public final String label;
+
+        QualityOption(int height, int fps, String label) {
+            this.height = height;
+            this.fps = fps;
+            this.label = label;
         }
     }
 
@@ -71,7 +92,9 @@ public final class VideoInfoService {
                 String size = bytes > 0 ? formatSize(bytes) : "未知";
                 String extractor = firstNonEmpty(info.getExtractor(), info.getExtractorKey(), "yt-dlp");
                 String thumbnail = firstNonEmpty(info.getThumbnail(), "");
-                Preview preview = new Preview(title, uploader, duration, resolution, size, extractor, thumbnail);
+                List<QualityOption> qualities = buildQualityOptions(info.getFormats());
+                Preview preview = new Preview(
+                        title, uploader, duration, resolution, size, extractor, thumbnail, qualities);
                 callback.onSuccess(preview);
             } catch (Throwable failure) {
                 String message = failure.getMessage();
@@ -85,6 +108,35 @@ public final class VideoInfoService {
                 executor.shutdown();
             }
         });
+    }
+
+    private static List<QualityOption> buildQualityOptions(List<VideoFormat> formats) {
+        // Keep only resolutions yt-dlp actually returned for video-capable formats.
+        // Group duplicate resolutions and display the highest frame rate available at each height.
+        Map<Integer, Integer> fpsByHeight = new TreeMap<>(Collections.reverseOrder());
+        if (formats != null) {
+            for (VideoFormat format : formats) {
+                if (format == null || format.getHeight() <= 0) continue;
+                String videoCodec = format.getVcodec();
+                if (videoCodec != null && "none".equalsIgnoreCase(videoCodec)) continue;
+                int height = format.getHeight();
+                int fps = Math.max(0, format.getFps());
+                fpsByHeight.merge(height, fps, Math::max);
+            }
+        }
+
+        List<QualityOption> qualities = new ArrayList<>();
+        for (Map.Entry<Integer, Integer> entry : fpsByHeight.entrySet()) {
+            int height = entry.getKey();
+            int fps = entry.getValue();
+            String label;
+            if (height == 4320) label = "8K · " + height + "p";
+            else if (height == 2160) label = "4K · " + height + "p";
+            else label = height + "p";
+            if (fps >= 48) label += " · " + fps + "fps";
+            qualities.add(new QualityOption(height, fps, label));
+        }
+        return qualities;
     }
 
     private static String firstNonEmpty(String... values) {
