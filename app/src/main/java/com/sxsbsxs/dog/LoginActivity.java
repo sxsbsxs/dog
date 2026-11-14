@@ -16,7 +16,9 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
@@ -149,6 +151,33 @@ public class LoginActivity extends Activity {
                 return scheme != null &&
                         !scheme.equalsIgnoreCase("http") &&
                         !scheme.equalsIgnoreCase("https");
+            }
+
+            @Override
+            public void onReceivedError(
+                    WebView view,
+                    WebResourceRequest request,
+                    WebResourceError error
+            ) {
+                super.onReceivedError(view, request, error);
+                if (!popup && request.isForMainFrame() && statusText != null) {
+                    statusText.setText("网页加载失败：" + error.getDescription() +
+                            "。请检查网络，或该网站是否限制应用内登录。");
+                }
+            }
+
+            @Override
+            public void onReceivedHttpError(
+                    WebView view,
+                    WebResourceRequest request,
+                    WebResourceResponse response
+            ) {
+                super.onReceivedHttpError(view, request, response);
+                if (!popup && request.isForMainFrame() && response.getStatusCode() >= 400 &&
+                        statusText != null) {
+                    statusText.setText("网站返回 HTTP " + response.getStatusCode() +
+                            "。可能需要更新网页、重新登录，或该站点不允许内嵌登录。");
+                }
             }
 
             @Override
