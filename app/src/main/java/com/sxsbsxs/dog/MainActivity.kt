@@ -368,7 +368,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                         style = MaterialTheme.typography.bodySmall
                     )
                     Text(
-                        if (hasCookieJar) "当前设备已有保存的网页登录状态。" else "当前尚未保存网页登录状态。",
+                        if (hasCookieJar) "本机已保存网页登录 Cookie，仅对已登录的网站生效。" else "当前尚未保存网页登录状态。",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
