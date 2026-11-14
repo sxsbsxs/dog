@@ -267,9 +267,6 @@ private val DogDarkColors = darkColorScheme(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DogApp
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
 private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
     val context = LocalContext.current
     val preferences = remember { context.getSharedPreferences("dog_settings", Context.MODE_PRIVATE) }
@@ -482,8 +479,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                     }
                 }
             }
-
-        ) { padding ->        ) { padding ->
+        ) { padding ->
             when (selectedTab) {
                 0 -> {
                     Column(
