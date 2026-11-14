@@ -897,7 +897,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                         )
                         Text("网站授权", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Text(
-                            if (hasCookieJar) "本机已保存 \${authorizedSites.size} 个网站授权"
+                            if (hasCookieJar) "本机已保存 ${authorizedSites.size} 个网站授权"
                             else "还没有添加网站授权",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
