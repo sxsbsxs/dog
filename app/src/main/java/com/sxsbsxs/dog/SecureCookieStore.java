@@ -192,7 +192,7 @@ public final class SecureCookieStore {
 
     private static boolean containsCookieRows(String value) {
         for (String line : value.split("\\n")) {
-            if (!line.isEmpty() && !line.startsWith("#")) return true;
+            if (!line.isEmpty() && (!line.startsWith("#") || line.startsWith("#HttpOnly_"))) return true;
         }
         return false;
     }
