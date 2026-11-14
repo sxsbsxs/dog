@@ -20,10 +20,12 @@ import com.yausername.youtubedl_android.YoutubeDLRequest;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -49,7 +51,11 @@ public class DownloadService extends Service {
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private final Object queueLock = new Object();
+    private final Queue<String> pendingUrls = new ArrayDeque<>();
     private volatile Future<?> downloadFuture;
+    private volatile int latestStartId;
+    private volatile int activeGeneration;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -71,14 +77,27 @@ public class DownloadService extends Service {
             return START_NOT_STICKY;
         }
 
-        if (!running.compareAndSet(false, true)) {
-            return START_NOT_STICKY;
-        }
+        synchronized (queueLock) {
+            latestStartId = startId;
+            if (running.get()) {
+                pendingUrls.offer(url);
+                int count = pendingUrls.size();
+                DownloadState.INSTANCE.queued(count);
+                NotificationManager manager = getSystemService(NotificationManager.class);
+                if (manager != null) {
+                    manager.notify(NOTIFICATION_ID,
+                            buildNotification("已加入队列 · 前面还有 " + count + " 个任务", 0, true));
+                }
+                return START_NOT_STICKY;
+            }
 
-        createNotificationChannel();
-        startForeground(NOTIFICATION_ID, buildNotification("正在准备下载", 0, true));
-        DownloadState.INSTANCE.started();
-        downloadFuture = executor.submit(() -> runDownload(url, startId));
+            running.set(true);
+            int generation = ++activeGeneration;
+            createNotificationChannel();
+            startForeground(NOTIFICATION_ID, buildNotification("正在准备下载", 0, true));
+            DownloadState.INSTANCE.started(pendingUrls.size());
+            downloadFuture = executor.submit(() -> runDownload(url, generation));
+        }
         return START_NOT_STICKY;
     }
 
@@ -88,7 +107,7 @@ public class DownloadService extends Service {
                  value.regionMatches(true, 0, "http://", 0, 7));
     }
 
-    private void runDownload(String url, int startId) {
+    private void runDownload(String url, int generation) {
         File temporaryCookieFile = null;
         try {
             File outputDirectory = getDownloadDirectory();
@@ -147,19 +166,29 @@ public class DownloadService extends Service {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 for (File file : completedFiles) {
                     try {
-                        MediaStorePublisher.publish(this, file);
+                        String publishedUri = MediaStorePublisher.publish(this, file);
                         publishedCount++;
+                        DownloadHistoryStore.record(
+                                this, url, file.getName(), publishedUri, "completed", "下载完成");
                         // Avoid retaining a second full-size copy after public publishing succeeds.
                         if (!file.delete()) {
                             Log.w(TAG, "Published file but could not remove staging copy: " + file);
                         }
                     } catch (Exception publishFailure) {
                         publishFailures++;
+                        DownloadHistoryStore.record(
+                                this, url, file.getName(), file.getAbsolutePath(),
+                                "saved_private", "公共目录发布失败，文件仍保留在应用目录");
                         Log.e(TAG, "Could not publish " + file.getName(), publishFailure);
                     }
                 }
             } else {
                 publishedCount = completedFiles.size();
+                for (File file : completedFiles) {
+                    DownloadHistoryStore.record(
+                            this, url, file.getName(), file.getAbsolutePath(),
+                            "completed", "下载完成");
+                }
             }
 
             String location;
@@ -186,16 +215,19 @@ public class DownloadService extends Service {
                 manager.notify(NOTIFICATION_ID, buildNotification(finishedMessage, 100, false));
             }
         } catch (YoutubeDL.CanceledException canceled) {
+            DownloadHistoryStore.record(this, url, "", "", "canceled", "已取消下载");
             DownloadState.INSTANCE.canceled();
             removeNotification();
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
+            DownloadHistoryStore.record(this, url, "", "", "canceled", "已取消下载");
             DownloadState.INSTANCE.canceled();
             removeNotification();
         } catch (Throwable failure) {
             String detail = failure.getMessage() == null ? "未知错误" : failure.getMessage();
             if (detail.length() > 180) detail = detail.substring(0, 180) + "…";
             String message = "下载失败：" + detail;
+            DownloadHistoryStore.record(this, url, "", "", "failed", message);
             DownloadState.INSTANCE.failed(message);
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
@@ -206,9 +238,27 @@ public class DownloadService extends Service {
             if (temporaryCookieFile != null && temporaryCookieFile.exists() && !temporaryCookieFile.delete()) {
                 Log.w(TAG, "Could not remove temporary plaintext cookie file");
             }
-            running.set(false);
-            stopForeground(STOP_FOREGROUND_DETACH);
-            stopSelfResult(startId);
+
+            synchronized (queueLock) {
+                // Ignore completion callbacks from a task invalidated by Cancel.
+                if (generation == activeGeneration) {
+                    String nextUrl = pendingUrls.poll();
+                    if (nextUrl != null) {
+                        int remaining = pendingUrls.size();
+                        DownloadState.INSTANCE.started(remaining);
+                        NotificationManager manager = getSystemService(NotificationManager.class);
+                        if (manager != null) {
+                            manager.notify(NOTIFICATION_ID,
+                                    buildNotification("正在准备下一个下载任务", 0, true));
+                        }
+                        downloadFuture = executor.submit(() -> runDownload(nextUrl, generation));
+                    } else {
+                        running.set(false);
+                        stopForeground(STOP_FOREGROUND_DETACH);
+                        stopSelfResult(latestStartId);
+                    }
+                }
+            }
         }
     }
 
@@ -303,16 +353,20 @@ public class DownloadService extends Service {
     }
 
     private void cancelDownload() {
-        try {
-            YoutubeDL.destroyProcessById(PROCESS_ID);
-        } catch (Throwable ignored) {
-            // The process may have exited before the cancel action arrived.
-        }
+        synchronized (queueLock) {
+            pendingUrls.clear();
+            activeGeneration++;
+            try {
+                YoutubeDL.destroyProcessById(PROCESS_ID);
+            } catch (Throwable ignored) {
+                // The process may have exited before the cancel action arrived.
+            }
 
-        Future<?> future = downloadFuture;
-        if (future != null) future.cancel(true);
-        running.set(false);
-        DownloadState.INSTANCE.canceled();
+            Future<?> future = downloadFuture;
+            if (future != null) future.cancel(true);
+            running.set(false);
+            DownloadState.INSTANCE.canceled();
+        }
     }
 
     private void createNotificationChannel() {
