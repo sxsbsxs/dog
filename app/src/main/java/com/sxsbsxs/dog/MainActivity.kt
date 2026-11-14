@@ -755,12 +755,17 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                         }
 
                         if (download.running || download.progress > 0) {
-                            LinearProgressIndicator(
-                                progress = { download.progress / 100f },
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                            if (download.progressKnown) {
+                                LinearProgressIndicator(
+                                    progress = { download.progress / 100f },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            } else {
+                                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            }
                             Text(
-                                download.message,
+                                if (download.progressKnown) download.message
+                                else download.message.ifBlank { "正在获取实时进度…" },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -812,9 +817,17 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
-                                        Text(download.progress.toString() + "%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                            if (download.progressKnown) {
+                                            Text(download.progress.toString() + "%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                        } else {
+                                            CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                                        }
                                     }
-                                    LinearProgressIndicator(progress = { download.progress / 100f }, modifier = Modifier.fillMaxWidth())
+                                    if (download.progressKnown) {
+                                        LinearProgressIndicator(progress = { download.progress / 100f }, modifier = Modifier.fillMaxWidth())
+                                    } else {
+                                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                                    }
                                     Text(download.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     if (download.outputPath.isNotBlank()) {
                                         Text("保存位置：" + download.outputPath, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

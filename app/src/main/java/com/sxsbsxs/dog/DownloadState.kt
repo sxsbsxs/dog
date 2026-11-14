@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.asStateFlow
 data class DownloadUiState(
     val running: Boolean = false,
     val progress: Int = 0,
+    val progressKnown: Boolean = false,
     val message: String = "粘贴视频链接即可开始",
     val outputPath: String = "",
     val queuedCount: Int = 0
@@ -43,10 +44,18 @@ object DownloadState {
         )
     }
 
+    fun updateMessage(message: String) {
+        mutableState.value = mutableState.value.copy(
+            running = true,
+            message = message
+        )
+    }
+
     fun updateProgress(progress: Int, message: String) {
         mutableState.value = mutableState.value.copy(
             running = true,
             progress = progress.coerceIn(0, 100),
+            progressKnown = true,
             message = message
         )
     }
@@ -58,6 +67,7 @@ object DownloadState {
     fun completed(path: String, message: String) {
         mutableState.value = DownloadUiState(
             progress = 100,
+            progressKnown = true,
             message = message,
             outputPath = path,
             queuedCount = 0

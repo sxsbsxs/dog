@@ -161,19 +161,27 @@ public class DownloadService extends Service {
 
             final int[] lastProgress = {-1};
             Function3<Float, Long, String, Unit> progressCallback = (progress, eta, outputLine) -> {
-                int percent = progress == null ? 0 : Math.max(0, Math.min(100, progress.intValue()));
+                // The library reports -1 until its stdout parser recognizes a progress line.
+                // Never convert that sentinel into 0%; that makes a missing callback look
+                // like a real download stuck at zero.
+                if (progress == null || !Float.isFinite(progress) || progress < 0f) {
+                    if (lastProgress[0] < 0) {
+                        DownloadState.INSTANCE.updateMessage("已连接下载源，正在获取实时进度…");
+                    }
+                    return Unit.INSTANCE;
+                }
+
+                int percent = Math.max(lastProgress[0], Math.min(100, Math.round(progress)));
+                lastProgress[0] = percent;
                 String speed = extractSpeed(outputLine);
                 String message = "正在下载 · " + percent + "%" +
                         (speed.isEmpty() ? "" : " · " + speed) +
                         (eta != null && eta > 0 ? " · 剩余约 " + eta + " 秒" : "");
 
                 DownloadState.INSTANCE.updateProgress(percent, message);
-                if (percent != lastProgress[0]) {
-                    lastProgress[0] = percent;
-                    NotificationManager manager = getSystemService(NotificationManager.class);
-                    if (manager != null) {
-                        manager.notify(NOTIFICATION_ID, buildNotification(message, percent, true));
-                    }
+                NotificationManager manager = getSystemService(NotificationManager.class);
+                if (manager != null) {
+                    manager.notify(NOTIFICATION_ID, buildNotification(message, percent, true));
                 }
                 return Unit.INSTANCE;
             };
@@ -357,6 +365,11 @@ public class DownloadService extends Service {
         request.addOption("-o", new File(directory, "%(title).200B.%(ext)s").getAbsolutePath());
         request.addOption("--newline");
         request.addOption("--progress");
+        // Emit a stable yt-dlp progress line. youtubedl-android parses
+        // "[download] 12.3% ... ETA 00:12" from stdout for its callback.
+        request.addOption("--progress-template",
+                "download:[download] %(progress._percent_str)s of %(progress._total_bytes_str)s at %(progress._speed_str)s ETA %(progress._eta_str)s");
+        request.addOption("--progress-delta", "1");
         request.addOption("--no-mtime");
         request.addOption("--retries", "10");
         request.addOption("--fragment-retries", "10");
