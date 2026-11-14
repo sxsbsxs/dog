@@ -391,7 +391,7 @@ public class DownloadService extends Service {
         // Emit a stable yt-dlp progress line. youtubedl-android parses
         // "[download] 12.3% ... ETA 00:12" from stdout for its callback.
         request.addOption("--progress-template",
-                "download:[download] %(progress._percent_str)s of %(progress._total_bytes_str)s at %(progress._speed_str)s ETA %(progress._eta_str)s");
+                "download:[download] %(progress._percent_str)s of %(progress._total_bytes_str)s at %(progress._speed_str)s ETA 00:00");
         request.addOption("--progress-delta", "1");
         request.addOption("--no-colors");
         request.addOption("--no-mtime");
