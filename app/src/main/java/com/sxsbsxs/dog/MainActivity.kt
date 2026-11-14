@@ -1,6 +1,7 @@
 package com.sxsbsxs.dog
 
 import android.Manifest
+import android.app.Activity
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
@@ -12,6 +13,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -163,9 +165,17 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
     }
 
     var url by rememberSaveable { mutableStateOf(initialUrl.orEmpty()) }
-    var cookie by rememberSaveable { mutableStateOf(SecureCookieStore.load(context)) }
+    var hasCookieJar by remember { mutableStateOf(SecureCookieStore.hasCookieJar(context)) }
     var cookieDialog by remember { mutableStateOf(false) }
     val download by DownloadState.state.collectAsState()
+    val loginLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        hasCookieJar = SecureCookieStore.hasCookieJar(context)
+        if (result.resultCode == Activity.RESULT_OK) {
+            Toast.makeText(context, "网站登录状态已保存", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     LaunchedEffect(initialUrl) {
         if (!initialUrl.isNullOrBlank()) url = initialUrl
@@ -187,7 +197,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                     title = { Text("Dog", fontWeight = FontWeight.Bold) },
                     actions = {
                         IconButton(onClick = { cookieDialog = true }) {
-                            Icon(Icons.Default.Settings, contentDescription = "Cookie 设置")
+                            Icon(Icons.Default.Settings, contentDescription = "账号授权")
                         }
                     }
                 )
@@ -350,26 +360,20 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
     if (cookieDialog) {
         AlertDialog(
             onDismissRequest = { cookieDialog = false },
-            title = { Text("Cookie 设置") },
+            title = { Text("网站账号授权") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "需要登录或更高画质时，粘贴浏览器复制的 Cookie 请求头。",
+                        "不需要手动查找 Cookie。先填写视频链接，然后在应用内打开对应网站登录，登录完成后点击“完成授权”。",
                         style = MaterialTheme.typography.bodySmall
                     )
-                    OutlinedTextField(
-                        value = cookie,
-                        onValueChange = { cookie = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = false,
-                        minLines = 2,
-                        maxLines = 4,
-                        label = { Text("Cookie") },
-                        placeholder = { Text("name=value; …") },
-                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None)
+                    Text(
+                        if (hasCookieJar) "当前设备已有保存的网页登录状态。" else "当前尚未保存网页登录状态。",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "Cookie 使用 Android Keystore 加密保存在本机；下载请求会发送给对应的视频网站。",
+                        "登录信息只保存在本机并经过加密。下载时会发送给对应的网站；部分平台可能限制应用内登录。",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -377,27 +381,27 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    runCatching { SecureCookieStore.save(context, cookie.trim()) }
-                        .onSuccess {
-                            cookieDialog = false
-                            Toast.makeText(context, "Cookie 已加密保存在本机", Toast.LENGTH_SHORT).show()
-                        }
-                        .onFailure {
-                            Toast.makeText(
-                                context,
-                                "Cookie 保存失败：" + (it.message ?: "设备安全存储不可用"),
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                }) { Text("保存") }
+                    val target = url.trim()
+                    if (!isHttpUrl(target)) {
+                        Toast.makeText(context, "请先粘贴要下载的视频链接", Toast.LENGTH_SHORT).show()
+                    } else {
+                        cookieDialog = false
+                        val intent = Intent(context, LoginActivity::class.java)
+                            .putExtra(LoginActivity.EXTRA_TARGET_URL, target)
+                        loginLauncher.launch(intent)
+                    }
+                }) { Text("网页登录授权") }
             },
             dismissButton = {
                 Row {
-                    TextButton(onClick = {
-                        cookie = ""
-                        runCatching { SecureCookieStore.save(context, "") }
-                        cookieDialog = false
-                    }) { Text("清除") }
+                    if (hasCookieJar) {
+                        TextButton(onClick = {
+                            SecureCookieStore.clear(context)
+                            hasCookieJar = false
+                            cookieDialog = false
+                            Toast.makeText(context, "已清除本机授权", Toast.LENGTH_SHORT).show()
+                        }) { Text("清除授权") }
+                    }
                     TextButton(onClick = { cookieDialog = false }) { Text("关闭") }
                 }
             }
