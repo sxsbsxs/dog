@@ -162,9 +162,10 @@ public class DownloadService extends Service {
             final int[] lastProgress = {-1};
             Function3<Float, Long, String, Unit> progressCallback = (progress, eta, outputLine) -> {
                 int percent = progress == null ? 0 : Math.max(0, Math.min(100, progress.intValue()));
-                String message = eta != null && eta > 0
-                        ? "正在下载 · " + percent + "% · 剩余约 " + eta + " 秒"
-                        : "正在下载 · " + percent + "%";
+                String speed = extractSpeed(outputLine);
+                String message = "正在下载 · " + percent + "%" +
+                        (speed.isEmpty() ? "" : " · " + speed) +
+                        (eta != null && eta > 0 ? " · 剩余约 " + eta + " 秒" : "");
 
                 DownloadState.INSTANCE.updateProgress(percent, message);
                 if (percent != lastProgress[0]) {
@@ -262,9 +263,7 @@ public class DownloadService extends Service {
             DownloadHistoryStore.record(this, url, "", "", "canceled", "已取消下载");
             DownloadState.INSTANCE.canceled();
         } catch (Throwable failure) {
-            String detail = failure.getMessage() == null ? "未知错误" : failure.getMessage();
-            if (detail.length() > 180) detail = detail.substring(0, 180) + "…";
-            String message = "下载失败：" + detail;
+            String message = formatDownloadError(failure);
             DownloadHistoryStore.record(this, url, "", "", "failed", message);
             DownloadState.INSTANCE.failed(message);
             NotificationManager manager = getSystemService(NotificationManager.class);
@@ -305,6 +304,52 @@ public class DownloadService extends Service {
                 stopSelfResult(completedStartId);
             }
         }
+    }
+
+    private String extractSpeed(String outputLine) {
+        if (outputLine == null || outputLine.isEmpty()) return "";
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("(?i)\\bat\\s+([^\\s]+/s)")
+                .matcher(outputLine);
+        return matcher.find() ? matcher.group(1) : "";
+    }
+
+    private String formatDownloadError(Throwable failure) {
+        String detail = failure == null ? "" : failure.getMessage();
+        if (detail == null || detail.trim().isEmpty()) {
+            detail = failure == null ? "未知错误" : failure.getClass().getSimpleName();
+        }
+        String normalized = detail.toLowerCase(java.util.Locale.ROOT);
+        String friendly;
+        if (normalized.contains("unsupported url") ||
+                normalized.contains("no suitable extractor") ||
+                normalized.contains("no extractor")) {
+            friendly = "暂不支持这个链接，请复制具体的视频播放页地址";
+        } else if (normalized.contains("403") || normalized.contains("forbidden")) {
+            friendly = "网站拒绝访问（403），请尝试登录授权或稍后重试";
+        } else if (normalized.contains("sign in") ||
+                normalized.contains("login required") ||
+                normalized.contains("authentication") ||
+                normalized.contains("members-only")) {
+            friendly = "这个内容需要账号登录，请到设置中完成网站授权";
+        } else if (normalized.contains("no space left") ||
+                normalized.contains("not enough space") ||
+                normalized.contains("disk full")) {
+            friendly = "手机存储空间不足，请清理空间后重试";
+        } else if (normalized.contains("ffmpeg") ||
+                normalized.contains("postprocessing") ||
+                normalized.contains("merger")) {
+            friendly = "音视频合并失败，请检查解析引擎和 FFmpeg 运行组件";
+        } else if (normalized.contains("timed out") ||
+                normalized.contains("timeout") ||
+                normalized.contains("connection reset") ||
+                normalized.contains("network is unreachable") ||
+                normalized.contains("unable to download webpage")) {
+            friendly = "网络连接失败，请检查网络后重试";
+        } else {
+            friendly = detail.length() > 180 ? detail.substring(0, 180) + "…" : detail;
+        }
+        return "下载失败：" + friendly;
     }
 
     private YoutubeDLRequest buildRequest(String url, File directory) {
