@@ -204,7 +204,15 @@ private fun isHttpUrl(value: String): Boolean =
 @Composable
 private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
     val context = LocalContext.current
-    val dark = isSystemInDarkTheme()
+    val preferences = remember { context.getSharedPreferences("dog_settings", Context.MODE_PRIVATE) }
+    var themeMode by rememberSaveable {
+        mutableStateOf(preferences.getString("theme_mode", "system") ?: "system")
+    }
+    val dark = when (themeMode) {
+        "light" -> false
+        "dark" -> true
+        else -> isSystemInDarkTheme()
+    }
     val colors = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && dark -> dynamicDarkColorScheme(context)
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> dynamicLightColorScheme(context)
@@ -218,7 +226,6 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
     var cookieDialog by remember { mutableStateOf(false) }
     var historyDialog by remember { mutableStateOf(false) }
     var historyJson by remember { mutableStateOf(DownloadHistoryStore.read(context)) }
-    val preferences = remember { context.getSharedPreferences("dog_settings", Context.MODE_PRIVATE) }
     var downloadSettingsDialog by remember { mutableStateOf(false) }
     var audioOnly by rememberSaveable { mutableStateOf(preferences.getBoolean("audio_only", false)) }
     var maxHeight by rememberSaveable { mutableStateOf(preferences.getInt("max_height", 0)) }
@@ -531,6 +538,19 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    Text("外观", style = MaterialTheme.typography.titleSmall)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        listOf("system" to "跟随系统", "light" to "浅色", "dark" to "深色").forEach { option ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(
+                                    selected = themeMode == option.first,
+                                    onClick = { themeMode = option.first }
+                                )
+                                Text(option.second)
+                            }
+                        }
+                    }
+
                     Text("下载类型", style = MaterialTheme.typography.titleSmall)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(selected = !audioOnly, onClick = { audioOnly = false })
@@ -661,6 +681,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
             confirmButton = {
                 TextButton(onClick = {
                     preferences.edit()
+                        .putString("theme_mode", themeMode)
                         .putBoolean("audio_only", audioOnly)
                         .putInt("max_height", maxHeight)
                         .putBoolean("download_subtitles", downloadSubtitles)
