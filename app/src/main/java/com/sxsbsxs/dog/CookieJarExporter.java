@@ -189,8 +189,10 @@ public final class CookieJarExporter {
             if (header == null || header.trim().isEmpty()) return;
 
             String domain = forcedDomain == null ? host : forcedDomain;
-            String path = uri.getPath();
-            if (path == null || path.isEmpty()) path = "/";
+            // CookieManager.getCookie() returns no Path metadata. Use "/" so a
+            // cookie read from /login remains usable on the site's video URLs.
+            // Domain scope stays host-only unless the SQLite row supplied it.
+            String path = "/";
             boolean secure = "https".equalsIgnoreCase(scheme);
 
             for (String part : header.split(";")) {
