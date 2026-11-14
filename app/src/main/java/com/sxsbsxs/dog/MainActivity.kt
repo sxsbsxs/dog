@@ -436,8 +436,12 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                     },
                     actions = {
                         if (selectedTab < 3) {
-                            TextButton(onClick = openLogin) {
-                                Text(if (hasCookieJar) "已授权" else "网站授权登录")
+                            TextButton(
+                                onClick = {
+                                    if (hasCookieJar) selectedTab = 2 else openLogin()
+                                }
+                            ) {
+                                Text(if (hasCookieJar) "授权管理" else "网站授权登录")
                             }
                         }
                     }
@@ -809,7 +813,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                                 title = if (download.progress == 100) "下载已完成" else "目前没有下载任务",
                                 description = if (download.outputPath.isNotBlank()) download.outputPath else download.message,
                                 action = if (download.progress == 100) "查看下载历史" else "去粘贴视频链接",
-                                onAction = { selectedTab = if (download.progress == 100) 2 else 0 }
+                                onAction = { selectedTab = if (download.progress == 100) 1 else 0 }
                             )
                         }
                     }
