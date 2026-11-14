@@ -67,13 +67,13 @@ public class DownloadService extends Service {
         if (intent != null && ACTION_CANCEL.equals(intent.getAction())) {
             cancelDownload();
             stopForeground(STOP_FOREGROUND_REMOVE);
-            stopSelf();
+            stopSelfResult(startId);
             return START_NOT_STICKY;
         }
 
         String url = intent == null ? null : intent.getStringExtra(EXTRA_URL);
         if (!isHttpUrl(url)) {
-            stopSelfResult(startId);
+            if (!running.get()) stopSelfResult(startId);
             return START_NOT_STICKY;
         }
 
