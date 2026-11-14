@@ -263,6 +263,8 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
         } else {
             onDownload(value)
             url = ""
+            preview = null
+            previewError = ""
         }
     }
 
@@ -355,6 +357,8 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                                     ?.trimEnd('.', ',', ';', '!', '。', '，', '；', ')', '）', ']', '】')
                                 if (!pastedUrl.isNullOrBlank() && isHttpUrl(pastedUrl)) {
                                     url = pastedUrl
+                                    preview = null
+                                    previewError = ""
                                 } else {
                                     Toast.makeText(context, "剪贴板里没有找到视频链接", Toast.LENGTH_SHORT).show()
                                 }
