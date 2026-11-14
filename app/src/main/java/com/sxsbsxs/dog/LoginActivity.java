@@ -266,7 +266,7 @@ public class LoginActivity extends Activity {
                         getApplicationContext(), loginUrl, visitedUrls);
                 int cookieCount = CookieJarExporter.countCookies(cookieFile);
                 int domainCount = CookieJarExporter.countDomains(cookieFile);
-                SecureCookieStore.saveCookieJar(getApplicationContext(), cookieFile);
+                SecureCookieStore.saveCookieJar(getApplicationContext(), loginUrl, cookieFile);
                 runOnUiThread(() -> {
                     setResult(Activity.RESULT_OK);
                     Toast.makeText(

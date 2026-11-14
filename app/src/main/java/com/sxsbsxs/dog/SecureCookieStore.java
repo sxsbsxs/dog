@@ -2,6 +2,7 @@ package com.sxsbsxs.dog;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.Base64;
@@ -31,6 +32,7 @@ public final class SecureCookieStore {
     private static final String LEGACY_KEY = "cookie";
     private static final String ENCRYPTED_KEY = "cookie_encrypted_v1";
     private static final String COOKIE_JAR_KEY = "cookie_jar_encrypted_v1";
+    private static final String COOKIE_SITE_PREFIX = "cookie_site_v2_";
     private static final String KEY_ALIAS = "dog_cookie_aes_gcm_v1";
     private static final int IV_LENGTH = 12;
     private static final int TAG_LENGTH_BITS = 128;
@@ -88,27 +90,58 @@ public final class SecureCookieStore {
     }
 
     public static synchronized String loadCookieJar(Context context) {
-        String encrypted = preferences(context).getString(COOKIE_JAR_KEY, null);
+        SharedPreferences preferences = preferences(context);
+        Map<String, ?> all = preferences.getAll();
+        String merged = "";
+        boolean hasSiteProfiles = false;
+
+        for (Map.Entry<String, ?> entry : all.entrySet()) {
+            if (!entry.getKey().startsWith(COOKIE_SITE_PREFIX)) continue;
+            if (!(entry.getValue() instanceof String)) continue;
+            hasSiteProfiles = true;
+            try {
+                String jar = decrypt((String) entry.getValue());
+                merged = mergeCookieJars(merged, jar);
+            } catch (Exception failure) {
+                // A corrupt profile must not prevent other sites from downloading.
+                preferences.edit().remove(entry.getKey()).apply();
+            }
+        }
+        if (hasSiteProfiles) return merged;
+
+        // Read the old single-profile jar only until the next successful site login.
+        String encrypted = preferences.getString(COOKIE_JAR_KEY, null);
         if (encrypted == null || encrypted.isEmpty()) return "";
         try {
             return decrypt(encrypted);
         } catch (Exception failure) {
-            preferences(context).edit().remove(COOKIE_JAR_KEY).apply();
+            preferences.edit().remove(COOKIE_JAR_KEY).apply();
             return "";
         }
     }
 
-    public static synchronized void saveCookieJar(Context context, String cookieJar) throws Exception {
+    public static synchronized void saveCookieJar(
+            Context context, String originUrl, String cookieJar
+    ) throws Exception {
         String value = cookieJar == null ? "" : cookieJar.trim();
         if (!value.startsWith(COOKIE_FILE_HEADER) || !containsCookieRows(value)) {
             throw new IllegalArgumentException("没有可保存的有效网页登录 Cookie");
         }
 
-        // Once a new website login is saved, remove the old unrestricted Cookie header.
-        String previous = loadCookieJar(context);
-        String merged = mergeCookieJars(previous, value);
+        Uri uri = Uri.parse(originUrl == null ? "" : originUrl);
+        String host = uri.getHost();
+        if (host == null || host.isEmpty()) {
+            throw new IllegalArgumentException("无法识别授权网站，Cookie 未保存");
+        }
+        String profileKey = COOKIE_SITE_PREFIX +
+                Base64.encodeToString(host.toLowerCase(java.util.Locale.ROOT)
+                        .getBytes(StandardCharsets.UTF_8), Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
+
+        // One independently encrypted profile per login origin. Re-authenticating
+        // a site replaces that site's profile without disturbing other sites.
         preferences(context).edit()
-                .putString(COOKIE_JAR_KEY, encrypt(merged))
+                .putString(profileKey, encrypt(value))
+                .remove(COOKIE_JAR_KEY)
                 .remove(ENCRYPTED_KEY)
                 .remove(LEGACY_KEY)
                 .apply();
@@ -176,11 +209,15 @@ public final class SecureCookieStore {
     }
 
     public static synchronized void clear(Context context) {
-        preferences(context).edit()
+        SharedPreferences preferences = preferences(context);
+        SharedPreferences.Editor editor = preferences.edit()
                 .remove(COOKIE_JAR_KEY)
                 .remove(ENCRYPTED_KEY)
-                .remove(LEGACY_KEY)
-                .apply();
+                .remove(LEGACY_KEY);
+        for (String key : preferences.getAll().keySet()) {
+            if (key.startsWith(COOKIE_SITE_PREFIX)) editor.remove(key);
+        }
+        editor.apply();
         CookieManager manager = CookieManager.getInstance();
         manager.removeAllCookies(removed -> manager.flush());
     }
