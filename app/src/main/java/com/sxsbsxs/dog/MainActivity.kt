@@ -324,7 +324,11 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
     }
 
     LaunchedEffect(initialUrl) {
-        if (!initialUrl.isNullOrBlank()) url = initialUrl
+        if (!initialUrl.isNullOrBlank()) {
+            url = initialUrl
+            maxHeight = 0
+            preferences.edit().putInt("max_height", 0).apply()
+        }
     }
 
     LaunchedEffect(
@@ -359,7 +363,8 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
             ?.trimEnd('.', ',', ';', '!', '。', '，', '；', ')', '）', ']', '】')
         if (!pastedUrl.isNullOrBlank() && isHttpUrl(pastedUrl)) {
             url = pastedUrl
-            preferences.edit().putString("last_input_url", pastedUrl).apply()
+            maxHeight = 0
+            preferences.edit().putString("last_input_url", pastedUrl).putInt("max_height", 0).apply()
             preview = null
             previewError = ""
         } else {
@@ -377,10 +382,17 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
             previewLoading = true
             preview = null
             previewError = ""
+            maxHeight = 0
+            preferences.edit().putInt("max_height", 0).apply()
             VideoInfoService.inspect(context, value, object : VideoInfoService.Callback {
                 override fun onSuccess(result: VideoInfoService.Preview) {
                     previewLoading = false
-                    if (url.trim() == value) preview = result
+                    if (url.trim() == value) {
+                        val actualDefaultHeight = result.qualities.firstOrNull()?.height ?: 0
+                        maxHeight = actualDefaultHeight
+                        preferences.edit().putInt("max_height", actualDefaultHeight).apply()
+                        preview = result
+                    }
                 }
                 override fun onError(message: String) {
                     previewLoading = false
@@ -398,6 +410,12 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
             Toast.makeText(context, "请输入有效的视频链接", Toast.LENGTH_SHORT).show()
         } else {
             preferences.edit().putString("last_input_url", value).apply()
+            // A parsed video keeps its explicit source-backed quality selection.
+            // Direct downloads without a preview fall back to yt-dlp's best format.
+            if (preview == null) {
+                maxHeight = 0
+                preferences.edit().putInt("max_height", 0).apply()
+            }
             onDownload(value)
             url = ""
             preview = null
@@ -514,7 +532,8 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                             value = url,
                             onValueChange = {
                                 url = it
-                                preferences.edit().putString("last_input_url", it).apply()
+                                maxHeight = 0
+                                preferences.edit().putString("last_input_url", it).putInt("max_height", 0).apply()
                                 preview = null
                                 previewError = ""
                             },
@@ -528,6 +547,8 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                                 if (url.isNotEmpty()) {
                                     IconButton(onClick = {
                                         url = ""
+                                        maxHeight = 0
+                                        preferences.edit().putInt("max_height", 0).apply()
                                         preview = null
                                         previewError = ""
                                     }) {
@@ -675,12 +696,21 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                                 }
                             }
                             Box(modifier = Modifier.weight(1f)) {
+                                val availableQualities = preview?.qualities.orEmpty()
+                                val selectedQualityLabel = when {
+                                    audioOnly -> "仅音频"
+                                    preview == null -> "先解析画质"
+                                    availableQualities.isEmpty() -> "无可用画质"
+                                    else -> availableQualities.firstOrNull { it.height == maxHeight }?.label
+                                        ?: availableQualities.first().label
+                                }
                                 OutlinedButton(
                                     onClick = { qualityMenuExpanded = true },
+                                    enabled = !audioOnly && availableQualities.isNotEmpty(),
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
-                                    Text(if (maxHeight == 0) "最高画质" else maxHeight.toString() + "p")
+                                    Text(selectedQualityLabel)
                                     Spacer(Modifier.width(4.dp))
                                     Text("⌄")
                                 }
@@ -688,21 +718,26 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                                     expanded = qualityMenuExpanded,
                                     onDismissRequest = { qualityMenuExpanded = false }
                                 ) {
-                                    listOf(
-                                        0 to "最高画质",
-                                        2160 to "4K",
-                                        1440 to "1440p",
-                                        1080 to "1080p",
-                                        720 to "720p",
-                                        480 to "480p"
-                                    ).forEach { option ->
+                                    availableQualities.forEach { option ->
                                         DropdownMenuItem(
-                                            text = { Text(option.second) },
-                                            onClick = { maxHeight = option.first; qualityMenuExpanded = false }
+                                            text = { Text(option.label) },
+                                            onClick = {
+                                                maxHeight = option.height
+                                                preferences.edit().putInt("max_height", option.height).apply()
+                                                qualityMenuExpanded = false
+                                            }
                                         )
                                     }
                                 }
                             }
+                        }
+
+                        if (preview != null && !audioOnly && preview!!.qualities.isEmpty()) {
+                            Text(
+                                "源站没有返回可识别的画质列表，下载时将使用源站默认最佳格式。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
 
                         Box(modifier = Modifier.fillMaxWidth()) {
@@ -1018,12 +1053,26 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                                 onSelected = { audioOnly = it == "audio" }
                             )
                             if (!audioOnly) {
-                                Text("画质上限", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                ChoiceChipRows(
-                                    options = listOf("0" to "最高", "2160" to "4K", "1440" to "1440p", "1080" to "1080p", "720" to "720p", "480" to "480p"),
-                                    selected = maxHeight.toString(),
-                                    onSelected = { maxHeight = it.toIntOrNull() ?: 0 }
-                                )
+                                Text("当前视频可用画质", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                val currentVideoQualities = preview?.qualities.orEmpty()
+                                if (currentVideoQualities.isEmpty()) {
+                                    Text(
+                                        if (preview == null) "先在主页解析视频，这里才会显示源站真实提供的画质。"
+                                        else "当前视频没有返回可识别的画质选项。",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                } else {
+                                    ChoiceChipRows(
+                                        options = currentVideoQualities.map { it.height.toString() to it.label },
+                                        selected = maxHeight.toString(),
+                                        onSelected = {
+                                            val selectedHeight = it.toIntOrNull() ?: 0
+                                            maxHeight = selectedHeight
+                                            preferences.edit().putInt("max_height", selectedHeight).apply()
+                                        }
+                                    )
+                                }
                                 Text("视频格式", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 ChoiceChipRows(
                                     options = listOf("mp4" to "MP4", "mkv" to "MKV", "webm" to "WebM"),
