@@ -16,6 +16,17 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.TopAppBar
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -208,23 +219,58 @@ private fun isHttpUrl(value: String): Boolean =
     value.startsWith("https://", ignoreCase = true) ||
         value.startsWith("http://", ignoreCase = true)
 
+private val DogLightColors = lightColorScheme(
+    primary = Color(0xFF4657B8), onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFE1E5FF), onPrimaryContainer = Color(0xFF111C55),
+    secondary = Color(0xFF59617C), onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFE3E6F5), onSecondaryContainer = Color(0xFF171E36),
+    tertiary = Color(0xFF76558E), onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFF1DAFF), onTertiaryContainer = Color(0xFF2A103F),
+    background = Color(0xFFF7F7FB), onBackground = Color(0xFF191B24),
+    surface = Color(0xFFFFFBFF), onSurface = Color(0xFF191B24),
+    surfaceVariant = Color(0xFFE8E9F1), onSurfaceVariant = Color(0xFF464957),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF1F1F7),
+    surfaceContainer = Color(0xFFECECF3),
+    surfaceContainerHigh = Color(0xFFE6E7EF),
+    outline = Color(0xFF777B8C), outlineVariant = Color(0xFFC7C8D4),
+    error = Color(0xFFBA1A1A), errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF410002)
+)
+
+private val DogDarkColors = darkColorScheme(
+    primary = Color(0xFFBAC3FF), onPrimary = Color(0xFF202D83),
+    primaryContainer = Color(0xFF35469F), onPrimaryContainer = Color(0xFFE1E5FF),
+    secondary = Color(0xFFC2C7E0), onSecondary = Color(0xFF2B3148),
+    secondaryContainer = Color(0xFF424862), onSecondaryContainer = Color(0xFFE0E4FF),
+    tertiary = Color(0xFFE0B8F7), onTertiary = Color(0xFF43245A),
+    tertiaryContainer = Color(0xFF5C3B72), onTertiaryContainer = Color(0xFFF1DAFF),
+    background = Color(0xFF11131B), onBackground = Color(0xFFE4E5F0),
+    surface = Color(0xFF171923), onSurface = Color(0xFFE4E5F0),
+    surfaceVariant = Color(0xFF414452), onSurfaceVariant = Color(0xFFC3C6D5),
+    surfaceContainerLowest = Color(0xFF0C0E15),
+    surfaceContainerLow = Color(0xFF1D202B),
+    surfaceContainer = Color(0xFF222531),
+    surfaceContainerHigh = Color(0xFF2D303D),
+    outline = Color(0xFF8D91A2), outlineVariant = Color(0xFF424654),
+    error = Color(0xFFFFB4AB), errorContainer = Color(0xFF93000A),
+    onErrorContainer = Color(0xFFFFDAD6)
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
     val context = LocalContext.current
     val preferences = remember { context.getSharedPreferences("dog_settings", Context.MODE_PRIVATE) }
-    var themeMode by rememberSaveable { mutableStateOf(preferences.getString("theme_mode", "system") ?: "system") }
+    var themeMode by rememberSaveable {
+        mutableStateOf(preferences.getString("theme_mode", "system") ?: "system")
+    }
     val dark = when (themeMode) {
         "light" -> false
         "dark" -> true
         else -> isSystemInDarkTheme()
     }
-    val colors = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && dark -> dynamicDarkColorScheme(context)
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> dynamicLightColorScheme(context)
-        dark -> darkColorScheme()
-        else -> lightColorScheme()
-    }
+    val colors = if (dark) DogDarkColors else DogLightColors
 
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     var url by rememberSaveable { mutableStateOf(initialUrl.orEmpty()) }
@@ -342,29 +388,37 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
         }
     }
 
-    val pageTitle = when (selectedTab) {
-        0 -> "Dog 下载器"
-        1 -> "下载任务"
-        2 -> "下载记录"
+    val pageLabel = when (selectedTab) {
+        0 -> "下载"
+        1 -> "任务"
+        2 -> "历史"
         else -> "设置"
     }
 
     MaterialTheme(colorScheme = colors) {
         Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
             topBar = {
-                CenterAlignedTopAppBar(
-                    title = { Text(pageTitle, fontWeight = FontWeight.Bold) },
+                TopAppBar(
+                    title = {
+                        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                            Text("Dog", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text(pageLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    },
                     actions = {
-                        if (selectedTab == 2) {
-                            IconButton(onClick = { historyJson = DownloadHistoryStore.read(context) }) {
-                                Icon(Icons.Default.History, contentDescription = "刷新记录")
-                            }
+                        IconButton(onClick = {
+                            authorizedSites = SecureCookieStore.listAuthorizedSites(context)
+                            hasCookieJar = SecureCookieStore.hasCookieJar(context)
+                            selectedTab = 3
+                        }) {
+                            Icon(Icons.Default.Settings, contentDescription = "设置")
                         }
                     }
                 )
             },
             bottomBar = {
-                NavigationBar {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
                     NavigationBarItem(
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
@@ -384,7 +438,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                             selectedTab = 2
                         },
                         icon = { Icon(Icons.Default.History, contentDescription = null) },
-                        label = { Text("记录") }
+                        label = { Text("历史") }
                     )
                     NavigationBarItem(
                         selected = selectedTab == 3,
@@ -402,49 +456,21 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
             when (selectedTab) {
                 0 -> {
                     Column(
-                        modifier = Modifier.fillMaxSize()
-                            .padding(padding)
-                            .verticalScroll(rememberScrollState())
-                            .imePadding()
-                            .padding(horizontal = 20.dp, vertical = 18.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        modifier = Modifier.fillMaxSize().padding(padding)
+                            .verticalScroll(rememberScrollState()).imePadding()
+                            .padding(horizontal = 22.dp, vertical = 18.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp)
                     ) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(26.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                        ) {
-                            Column(Modifier.padding(22.dp)) {
-                                Text(
-                                    "把视频保存到本机",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    "粘贴公开视频链接，选择画质后即可下载",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Spacer(Modifier.height(14.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    AssistChip(
-                                        onClick = { selectedTab = 3 },
-                                        label = { Text(if (hasCookieJar) "账号已授权" else "可选：登录提升画质") },
-                                        leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) }
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    AssistChip(
-                                        onClick = { selectedTab = 3 },
-                                        label = { Text(if (audioOnly) "音频模式" else if (maxHeight == 0) "最高画质" else "\${maxHeight}p 上限") }
-                                    )
-                                }
-                            }
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("保存你喜欢的视频", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                            Text("粘贴视频链接，剩下的交给 Dog。", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
 
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("视频链接", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("视频链接", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                                Text("支持 yt-dlp 网站", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                             OutlinedTextField(
                                 value = url,
                                 onValueChange = {
@@ -454,9 +480,10 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                                     previewError = ""
                                 },
                                 modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                shape = RoundedCornerShape(18.dp),
-                                placeholder = { Text("粘贴 YouTube、B站、抖音等链接") },
+                                minLines = 2,
+                                maxLines = 3,
+                                shape = RoundedCornerShape(20.dp),
+                                placeholder = { Text("粘贴 YouTube、B站、抖音等视频链接") },
                                 trailingIcon = {
                                     if (url.isNotEmpty()) {
                                         IconButton(onClick = {
@@ -464,11 +491,11 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                                             preview = null
                                             previewError = ""
                                         }) {
-                                            Icon(Icons.Default.Close, contentDescription = "清空")
+                                            Icon(Icons.Default.Close, contentDescription = "清空链接")
                                         }
                                     } else {
                                         IconButton(onClick = pasteUrl) {
-                                            Icon(Icons.Default.ContentPaste, contentDescription = "粘贴")
+                                            Icon(Icons.Default.ContentPaste, contentDescription = "粘贴链接")
                                         }
                                     }
                                 },
@@ -478,70 +505,81 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                                 ),
                                 keyboardActions = KeyboardActions(onGo = { startDownload() })
                             )
+                            Text("也可以从其他 App 分享视频链接到 Dog。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            shape = RoundedCornerShape(18.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                        ) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                modifier = Modifier.padding(horizontal = 15.dp, vertical = 13.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                OutlinedButton(
-                                    onClick = pasteUrl,
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(14.dp)
-                                ) {
-                                    Icon(Icons.Default.ContentPaste, contentDescription = null)
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("粘贴链接")
+                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text("当前下载方案", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(
+                                        if (audioOnly) "音频 · " + audioFormat
+                                        else "视频 · " + (if (maxHeight == 0) "最高画质" else maxHeight.toString() + "p") + " · " + videoContainer.uppercase(Locale.ROOT),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
                                 }
-                                OutlinedButton(
+                                TextButton(onClick = { selectedTab = 3 }) {
+                                    Text("调整")
+                                    Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+
+                        Button(
+                            onClick = startDownload,
+                            enabled = url.isNotBlank() && !previewLoading && !engineUpdating,
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            shape = RoundedCornerShape(18.dp)
+                        ) {
+                            Icon(Icons.Default.Download, contentDescription = null)
+                            Spacer(Modifier.width(9.dp))
+                            Text(if (download.running) "加入下载队列" else "开始下载", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (previewLoading) {
+                                CircularProgressIndicator(modifier = Modifier.size(15.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(7.dp))
+                                Text("正在解析视频信息…", style = MaterialTheme.typography.labelMedium)
+                            } else {
+                                TextButton(
                                     onClick = startPreview,
-                                    enabled = url.isNotBlank() && !previewLoading && !download.running && !engineUpdating,
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(14.dp)
-                                ) {
-                                    if (previewLoading) {
-                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                                    } else {
-                                        Icon(Icons.Default.Tune, contentDescription = null)
-                                    }
-                                    Spacer(Modifier.width(6.dp))
-                                    Text(if (previewLoading) "解析中" else "解析信息")
-                                }
+                                    enabled = url.isNotBlank() && !download.running && !engineUpdating
+                                ) { Text("下载前查看视频信息") }
                             }
-                            Button(
-                                onClick = startDownload,
-                                enabled = url.isNotBlank() && !previewLoading && !engineUpdating,
-                                modifier = Modifier.fillMaxWidth().height(56.dp),
-                                shape = RoundedCornerShape(16.dp)
-                            ) {
-                                Icon(Icons.Default.Download, contentDescription = null)
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    if (download.running) "加入下载队列" else "开始下载",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                            Text(
-                                "默认下载当前视频；整张播放列表可在设置中开启。",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                         }
 
                         if (preview != null) {
                             val info = preview!!
-                            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
-                                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                                    Text("视频信息", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                                    Text(info.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                                    if (info.uploader.isNotBlank()) Text("作者：\${info.uploader}", style = MaterialTheme.typography.bodySmall)
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerLow
+                            ) {
+                                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("视频预览", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                                    Text(info.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    if (info.uploader.isNotBlank()) {
+                                        Text("作者：" + info.uploader, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
                                     Text(
-                                        listOf(info.duration, info.resolution, info.fileSize)
-                                            .filter { it.isNotBlank() && it != "未知" }
-                                            .joinToString(" · "),
+                                        listOf(info.duration, info.resolution, info.fileSize).filter { it.isNotBlank() && it != "未知" }.joinToString(" · "),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    Text("来源：\${info.extractor}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
@@ -550,14 +588,22 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                         }
 
                         if (download.running) {
-                            ActiveDownloadCard(
-                                message = download.message,
-                                progress = download.progress,
-                                queuedCount = download.queuedCount,
-                                outputPath = download.outputPath,
-                                onCancel = { DownloadService.cancel(context) },
-                                onClearQueue = { DownloadService.clearQueue(context) }
-                            )
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(18.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 15.dp, vertical = 13.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text("有下载任务正在进行", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                        Text(download.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    }
+                                    TextButton(onClick = { selectedTab = 1 }) { Text("查看") }
+                                }
+                            }
                         }
                     }
                 }
@@ -565,39 +611,61 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                 1 -> {
                     Column(
                         modifier = Modifier.fillMaxSize().padding(padding)
-                            .verticalScroll(rememberScrollState()).padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                            .verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp)
                     ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("下载任务", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                            Text("查看当前进度和等待中的下载。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                         if (download.running) {
-                            ActiveDownloadCard(
-                                message = download.message,
-                                progress = download.progress,
-                                queuedCount = download.queuedCount,
-                                outputPath = download.outputPath,
-                                onCancel = { DownloadService.cancel(context) },
-                                onClearQueue = { DownloadService.clearQueue(context) }
-                            )
-                            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
-                                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text("队列状态", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                                    Text(
-                                        if (download.queuedCount > 0) "还有 \${download.queuedCount} 个任务等待下载"
-                                        else "当前没有等待任务",
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        "队列按顺序执行。清空等待队列不会影响正在下载的视频。",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(24.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            ) {
+                                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Surface(modifier = Modifier.size(42.dp), shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.padding(10.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                                        }
+                                        Spacer(Modifier.width(12.dp))
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text("正在处理视频", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                            Text(
+                                                if (download.queuedCount > 0) "还有 " + download.queuedCount + " 个等待任务" else "当前队列正在执行",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Text(download.progress.toString() + "%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                    }
+                                    LinearProgressIndicator(progress = { download.progress / 100f }, modifier = Modifier.fillMaxWidth())
+                                    Text(download.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if (download.outputPath.isNotBlank()) {
+                                        Text("保存位置：" + download.outputPath, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedButton(onClick = { DownloadService.cancel(context) }, modifier = Modifier.weight(1f)) {
+                                            Text("取消全部")
+                                        }
+                                        if (download.queuedCount > 0) {
+                                            Button(onClick = { DownloadService.clearQueue(context) }, modifier = Modifier.weight(1f)) {
+                                                Text("清空等待项")
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         } else {
                             EmptyState(
-                                title = if (download.progress == 100) "最近一次下载已完成" else "当前没有下载任务",
-                                description = download.message,
-                                action = "去粘贴视频链接",
-                                onAction = { selectedTab = 0 }
+                                icon = if (download.progress == 100) Icons.Default.CheckCircle else Icons.Default.Download,
+                                title = if (download.progress == 100) "下载已完成" else "目前没有下载任务",
+                                description = if (download.outputPath.isNotBlank()) download.outputPath else download.message,
+                                action = if (download.progress == 100) "查看下载历史" else "去粘贴视频链接",
+                                onAction = { selectedTab = if (download.progress == 100) 2 else 0 }
                             )
                         }
                     }
@@ -605,83 +673,64 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
 
                 2 -> {
                     val historyItems = remember(historyJson) { parseDownloadHistory(historyJson) }
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(padding)
-                            .verticalScroll(rememberScrollState()).padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(padding),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 22.dp, vertical = 18.dp),
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text("最近下载", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                                Text("\${historyItems.size} 条记录", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        item {
+                            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text("下载历史", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                                    Text(historyItems.size.toString() + " 条本机记录", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                TextButton(
+                                    onClick = {
+                                        DownloadHistoryStore.clear(context)
+                                        historyJson = "[]"
+                                    },
+                                    enabled = historyItems.isNotEmpty()
+                                ) { Text("清空") }
                             }
-                            TextButton(
-                                onClick = {
-                                    DownloadHistoryStore.clear(context)
-                                    historyJson = "[]"
-                                },
-                                enabled = historyItems.isNotEmpty()
-                            ) { Text("清空") }
                         }
                         if (historyItems.isEmpty()) {
-                            EmptyState(
-                                title = "还没有下载记录",
-                                description = "下载完成或失败后，记录会自动出现在这里。",
-                                action = "开始下载",
-                                onAction = { selectedTab = 0 }
-                            )
+                            item {
+                                EmptyState(
+                                    icon = Icons.Default.History,
+                                    title = "还没有下载记录",
+                                    description = "完成或失败的任务会保存在这里。",
+                                    action = "开始下载",
+                                    onAction = { selectedTab = 0 }
+                                )
+                            }
                         } else {
-                            historyItems.forEach { item ->
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(18.dp),
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-                                ) {
-                                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Text(
-                                            item.fileName.ifBlank { item.message.ifBlank { "下载任务" } },
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                        Text(
-                                            listOf(item.source, item.time, item.statusLabel)
-                                                .filter { it.isNotBlank() }.joinToString(" · "),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        if (item.message.isNotBlank() && item.fileName.isNotBlank()) {
-                                            Text(item.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            items(historyItems) { item ->
+                                HistoryRow(
+                                    item = item,
+                                    onOpen = {
+                                        runCatching {
+                                            val uri = Uri.parse(item.location)
+                                            val mime = context.contentResolver.getType(uri) ?: "*/*"
+                                            val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime)
+                                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            context.startActivity(intent)
+                                        }.onFailure {
+                                            Toast.makeText(context, "无法打开该文件", Toast.LENGTH_SHORT).show()
                                         }
-                                        if (item.location.startsWith("content://")) {
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                TextButton(onClick = {
-                                                    runCatching {
-                                                        val uri = Uri.parse(item.location)
-                                                        val mime = context.contentResolver.getType(uri) ?: "*/*"
-                                                        val intent = Intent(Intent.ACTION_VIEW)
-                                                            .setDataAndType(uri, mime)
-                                                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                        context.startActivity(intent)
-                                                    }.onFailure {
-                                                        Toast.makeText(context, "无法打开该文件", Toast.LENGTH_SHORT).show()
-                                                    }
-                                                }) { Text("打开文件") }
-                                                TextButton(onClick = {
-                                                    runCatching {
-                                                        val uri = Uri.parse(item.location)
-                                                        val intent = Intent(Intent.ACTION_SEND)
-                                                            .setType(context.contentResolver.getType(uri) ?: "video/*")
-                                                            .putExtra(Intent.EXTRA_STREAM, uri)
-                                                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                        context.startActivity(Intent.createChooser(intent, "分享下载文件"))
-                                                    }.onFailure {
-                                                        Toast.makeText(context, "无法分享该文件", Toast.LENGTH_SHORT).show()
-                                                    }
-                                                }) { Text("分享") }
-                                            }
+                                    },
+                                    onShare = {
+                                        runCatching {
+                                            val uri = Uri.parse(item.location)
+                                            val intent = Intent(Intent.ACTION_SEND)
+                                                .setType(context.contentResolver.getType(uri) ?: "video/*")
+                                                .putExtra(Intent.EXTRA_STREAM, uri)
+                                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            context.startActivity(Intent.createChooser(intent, "分享下载文件"))
+                                        }.onFailure {
+                                            Toast.makeText(context, "无法分享该文件", Toast.LENGTH_SHORT).show()
                                         }
                                     }
-                                }
+                                )
                             }
                         }
                     }
@@ -691,114 +740,98 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                     Column(
                         modifier = Modifier.fillMaxSize().padding(padding)
                             .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 18.dp, vertical = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                            .padding(horizontal = 22.dp, vertical = 18.dp),
+                        verticalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
-                        SettingsSection(title = "外观", description = "选择应用显示方式") {
-                            listOf("system" to "跟随系统", "light" to "浅色", "dark" to "深色").forEach { option ->
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    RadioButton(selected = themeMode == option.first, onClick = { themeMode = option.first })
-                                    Text(option.second, style = MaterialTheme.typography.bodyMedium)
-                                }
-                            }
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("设置", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                            Text("按你的使用习惯调整下载方式。修改会自动保存。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
 
-                        SettingsSection(title = "下载类型", description = "常用选项会自动保存") {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                RadioButton(selected = !audioOnly, onClick = { audioOnly = false })
-                                Text("视频")
-                                Spacer(Modifier.width(18.dp))
-                                RadioButton(selected = audioOnly, onClick = { audioOnly = true })
-                                Text("音频")
-                            }
-                            HorizontalDivider()
+                        SettingsGroup("外观", "应用的显示方式") {
+                            ChoiceChipRows(
+                                options = listOf("system" to "跟随系统", "light" to "浅色", "dark" to "深色"),
+                                selected = themeMode,
+                                onSelected = { themeMode = it }
+                            )
+                        }
+
+                        SettingsGroup("下载格式", "选择视频或音频，以及画质和文件格式") {
+                            ChoiceChipRows(
+                                options = listOf("video" to "视频", "audio" to "音频"),
+                                selected = if (audioOnly) "audio" else "video",
+                                onSelected = { audioOnly = it == "audio" }
+                            )
                             if (!audioOnly) {
-                                Text("画质上限", style = MaterialTheme.typography.titleSmall)
-                                listOf(0 to "最高画质", 2160 to "4K", 1440 to "1440p", 1080 to "1080p", 720 to "720p", 480 to "480p").forEach { option ->
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        RadioButton(selected = maxHeight == option.first, onClick = { maxHeight = option.first })
-                                        Text(option.second)
-                                    }
-                                }
-                                HorizontalDivider()
-                                Text("视频格式", style = MaterialTheme.typography.titleSmall)
-                                listOf("mp4" to "MP4 · 通用", "mkv" to "MKV · 字幕兼容", "webm" to "WebM · 开放格式").forEach { option ->
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        RadioButton(selected = videoContainer == option.first, onClick = { videoContainer = option.first })
-                                        Text(option.second)
-                                    }
-                                }
+                                Text("画质上限", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                ChoiceChipRows(
+                                    options = listOf("0" to "最高", "2160" to "4K", "1440" to "1440p", "1080" to "1080p", "720" to "720p", "480" to "480p"),
+                                    selected = maxHeight.toString(),
+                                    onSelected = { maxHeight = it.toIntOrNull() ?: 0 }
+                                )
+                                Text("视频格式", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                ChoiceChipRows(
+                                    options = listOf("mp4" to "MP4", "mkv" to "MKV", "webm" to "WebM"),
+                                    selected = videoContainer,
+                                    onSelected = { videoContainer = it }
+                                )
                             } else {
-                                Text("音频格式", style = MaterialTheme.typography.titleSmall)
-                                listOf("mp3" to "MP3", "m4a" to "M4A", "opus" to "Opus", "flac" to "FLAC").forEach { option ->
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        RadioButton(selected = audioFormat == option.first, onClick = { audioFormat = option.first })
-                                        Text(option.second)
-                                    }
-                                }
-                                SettingSwitch(
+                                Text("音频格式", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                ChoiceChipRows(
+                                    options = listOf("mp3" to "MP3", "m4a" to "M4A", "opus" to "Opus", "flac" to "FLAC"),
+                                    selected = audioFormat,
+                                    onSelected = { audioFormat = it }
+                                )
+                                SettingsToggleRow(
                                     title = "嵌入封面图片",
+                                    description = "将视频封面写入音频文件",
                                     checked = embedThumbnail,
                                     onCheckedChange = { embedThumbnail = it }
                                 )
                             }
                         }
 
-                        SettingsSection(title = "字幕与列表", description = "播放列表默认关闭，避免意外下载大量视频") {
-                            SettingSwitch(
-                                title = "同时下载字幕",
-                                checked = downloadSubtitles,
-                                onCheckedChange = { downloadSubtitles = it }
-                            )
+                        SettingsGroup("字幕与播放列表", "默认仅下载当前视频，避免意外下载整张列表") {
+                            SettingsToggleRow("同时下载字幕", "包含网站提供的自动字幕", downloadSubtitles) { downloadSubtitles = it }
                             if (downloadSubtitles) {
                                 OutlinedTextField(
                                     value = subtitleLanguages,
                                     onValueChange = { subtitleLanguages = it },
                                     modifier = Modifier.fillMaxWidth(),
                                     singleLine = true,
+                                    shape = RoundedCornerShape(14.dp),
                                     label = { Text("字幕语言") },
                                     placeholder = { Text("all 或 zh-Hans,zh-CN,en") },
-                                    supportingText = { Text("输入 all 下载所有语言，或填写语言代码") }
+                                    supportingText = { Text("输入 all 下载全部语言，或填写语言代码") }
                                 )
                             }
-                            SettingSwitch(
-                                title = "下载整个播放列表",
-                                checked = downloadPlaylist,
-                                onCheckedChange = { downloadPlaylist = it }
-                            )
-                            SettingSwitch(
-                                title = "跳过已经下载过的视频",
-                                checked = skipExisting,
-                                onCheckedChange = { skipExisting = it }
+                            SettingsToggleRow("下载整个播放列表", "开启后按顺序下载列表中的视频", downloadPlaylist) { downloadPlaylist = it }
+                            SettingsToggleRow("跳过已经下载过的视频", "在本机保存 yt-dlp 下载归档", skipExisting) { skipExisting = it }
+                        }
+
+                        SettingsGroup("下载速度", "较高并发会增加网络和设备负载") {
+                            ChoiceChipRows(
+                                options = listOf("1" to "省流量", "4" to "均衡", "8" to "高速"),
+                                selected = concurrentFragments.toString(),
+                                onSelected = { concurrentFragments = it.toIntOrNull() ?: 4 }
                             )
                         }
 
-                        SettingsSection(title = "下载速度", description = "较高并发可能增加流量和设备负载") {
-                            listOf(1 to "省流量", 4 to "均衡", 8 to "高速").forEach { option ->
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    RadioButton(selected = concurrentFragments == option.first, onClick = { concurrentFragments = option.first })
-                                    Text(option.second)
-                                }
-                            }
-                        }
-
-                        SettingsSection(title = "账号授权", description = "授权仅保存在本机，并使用 Android Keystore 加密") {
+                        SettingsGroup("网站账号", "登录仅保存在本机并加密，不需要手动复制 Cookie") {
                             Text(
-                                if (hasCookieJar) "已保存 \${authorizedSites.size} 个网站授权配置" else "尚未保存网站授权",
+                                if (hasCookieJar) "已保存 " + authorizedSites.size + " 个网站授权" else "尚未添加网站授权",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            if (authorizedSites.isNotEmpty()) {
-                                authorizedSites.forEach { site ->
-                                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                        Text(site, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                                        TextButton(onClick = {
-                                            SecureCookieStore.removeAuthorizedSite(context, site)
-                                            authorizedSites = SecureCookieStore.listAuthorizedSites(context)
-                                            hasCookieJar = SecureCookieStore.hasCookieJar(context)
-                                            Toast.makeText(context, "已移除 $site 的授权", Toast.LENGTH_SHORT).show()
-                                        }) { Text("移除") }
-                                    }
+                            authorizedSites.forEach { site ->
+                                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(site, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                                    TextButton(onClick = {
+                                        SecureCookieStore.removeAuthorizedSite(context, site)
+                                        authorizedSites = SecureCookieStore.listAuthorizedSites(context)
+                                        hasCookieJar = SecureCookieStore.hasCookieJar(context)
+                                        Toast.makeText(context, "已移除 " + site + " 的授权", Toast.LENGTH_SHORT).show()
+                                    }) { Text("移除") }
                                 }
                             }
                             Button(
@@ -808,17 +841,13 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                                         Toast.makeText(context, "先在下载页粘贴一个该网站的视频链接", Toast.LENGTH_SHORT).show()
                                     } else {
                                         loginLauncher.launch(
-                                            Intent(context, LoginActivity::class.java)
-                                                .putExtra(LoginActivity.EXTRA_TARGET_URL, target)
+                                            Intent(context, LoginActivity::class.java).putExtra(LoginActivity.EXTRA_TARGET_URL, target)
                                         )
                                     }
                                 },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Default.Settings, contentDescription = null)
-                                Spacer(Modifier.width(8.dp))
-                                Text("添加网站登录授权")
-                            }
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp)
+                            ) { Text("添加网站登录授权") }
                             if (hasCookieJar) {
                                 TextButton(
                                     onClick = {
@@ -832,7 +861,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                             }
                         }
 
-                        SettingsSection(title = "解析引擎", description = "当网站改版导致解析失败时，可尝试更新 yt-dlp 提取器") {
+                        SettingsGroup("解析引擎", "网站改版导致解析失败时，可以尝试更新 yt-dlp") {
                             OutlinedButton(
                                 onClick = {
                                     engineUpdating = true
@@ -842,30 +871,18 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                                     }
                                 },
                                 enabled = !engineUpdating && !download.running && !previewLoading,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp)
                             ) {
                                 if (engineUpdating) {
                                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                                     Spacer(Modifier.width(8.dp))
-                                    Text("正在更新解析引擎…")
-                                } else {
-                                    Text("检查并更新 yt-dlp")
-                                }
+                                    Text("正在更新…")
+                                } else Text("检查并更新 yt-dlp")
                             }
-                            Text(
-                                "这只更新本机网站解析脚本，不会更新 Dog 应用本身。",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Text("这只更新本机的网站解析脚本，不会更新 Dog 应用。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-
-                        Text(
-                            "Dog · 本地视频下载器",
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Text("Dog · 本地视频下载器", modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -874,95 +891,116 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
 }
 
 @Composable
-private fun ActiveDownloadCard(
-    message: String,
-    progress: Int,
-    queuedCount: Int,
-    outputPath: String,
-    onCancel: () -> Unit,
-    onClearQueue: () -> Unit
+private fun ChoiceChipRows(
+    options: List<Pair<String, String>>,
+    selected: String,
+    onSelected: (String) -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-    ) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("正在下载", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("\${progress}%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+    options.chunked(3).forEach { rowOptions ->
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            rowOptions.forEach { (value, label) ->
+                FilterChip(
+                    selected = selected == value,
+                    onClick = { onSelected(value) },
+                    label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    modifier = Modifier.weight(1f)
+                )
             }
-            Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            LinearProgressIndicator(progress = { progress / 100f }, modifier = Modifier.fillMaxWidth())
-            if (queuedCount > 0) {
-                Text("另有 \${queuedCount} 个任务排队中", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                OutlinedButton(onClick = onClearQueue, modifier = Modifier.fillMaxWidth()) {
-                    Text("只清空等待队列")
-                }
-            }
-            OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
-                Text("取消当前任务和全部队列")
-            }
-            if (outputPath.isNotBlank()) {
-                Text("保存位置：$outputPath", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            repeat(3 - rowOptions.size) { Spacer(Modifier.weight(1f)) }
         }
     }
 }
 
 @Composable
+private fun SettingsGroup(
+    title: String,
+    description: String,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+        Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
+    }
+}
+
+@Composable
+private fun SettingsToggleRow(
+    title: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
+private fun HistoryRow(
+    item: DownloadHistoryItem,
+    onOpen: () -> Unit,
+    onShare: () -> Unit
+) {
+    val statusColor = when {
+        item.statusLabel.contains("失败") -> MaterialTheme.colorScheme.error
+        item.statusLabel.contains("完成") -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                item.fileName.ifBlank { item.message.ifBlank { "下载任务" } },
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(item.statusLabel, style = MaterialTheme.typography.labelSmall, color = statusColor)
+        }
+        Text(
+            listOf(item.source, item.time).filter { it.isNotBlank() }.joinToString(" · "),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (item.message.isNotBlank() && item.fileName.isNotBlank()) {
+            Text(item.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        if (item.location.startsWith("content://")) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onOpen) { Text("打开文件") }
+                TextButton(onClick = onShare) { Text("分享") }
+            }
+        }
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+}
+
+@Composable
 private fun EmptyState(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     description: String,
     action: String,
     onAction: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp, horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(42.dp), tint = MaterialTheme.colorScheme.primary)
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(description, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Button(onClick = onAction) { Text(action) }
+        Surface(modifier = Modifier.size(64.dp), shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+            Icon(icon, contentDescription = null, modifier = Modifier.padding(17.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
         }
-    }
-}
-
-@Composable
-private fun SettingsSection(
-    title: String,
-    description: String,
-    content: @Composable () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            content()
-        }
-    }
-}
-
-@Composable
-private fun SettingSwitch(
-    title: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+        Button(onClick = onAction, shape = RoundedCornerShape(16.dp)) { Text(action) }
     }
 }
 
