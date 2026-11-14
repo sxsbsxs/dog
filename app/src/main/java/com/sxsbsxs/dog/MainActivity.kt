@@ -39,11 +39,13 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -53,6 +55,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -214,6 +217,11 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
     var cookieDialog by remember { mutableStateOf(false) }
     var historyDialog by remember { mutableStateOf(false) }
     var historyJson by remember { mutableStateOf(DownloadHistoryStore.read(context)) }
+    val preferences = remember { context.getSharedPreferences("dog_settings", Context.MODE_PRIVATE) }
+    var downloadSettingsDialog by remember { mutableStateOf(false) }
+    var audioOnly by rememberSaveable { mutableStateOf(preferences.getBoolean("audio_only", false)) }
+    var maxHeight by rememberSaveable { mutableStateOf(preferences.getInt("max_height", 0)) }
+    var downloadSubtitles by rememberSaveable { mutableStateOf(preferences.getBoolean("download_subtitles", false)) }
     val download by DownloadState.state.collectAsState()
     val loginLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -244,6 +252,9 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                 CenterAlignedTopAppBar(
                     title = { Text("Dog", fontWeight = FontWeight.Bold) },
                     actions = {
+                        IconButton(onClick = { downloadSettingsDialog = true }) {
+                            Icon(Icons.Default.Tune, contentDescription = "下载设置")
+                        }
                         IconButton(onClick = {
                             historyJson = DownloadHistoryStore.read(context)
                             historyDialog = true
@@ -409,6 +420,63 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                 Spacer(Modifier.height(16.dp))
             }
         }
+    }
+
+    if (downloadSettingsDialog) {
+        AlertDialog(
+            onDismissRequest = { downloadSettingsDialog = false },
+            title = { Text("下载设置") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("下载类型", style = MaterialTheme.typography.titleSmall)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = !audioOnly, onClick = { audioOnly = false })
+                        Text("视频")
+                        Spacer(Modifier.width(16.dp))
+                        RadioButton(selected = audioOnly, onClick = { audioOnly = true })
+                        Text("MP3 音频")
+                    }
+                    if (!audioOnly) {
+                        Text("视频清晰度上限", style = MaterialTheme.typography.titleSmall)
+                        listOf(0 to "最高画质", 1080 to "1080p", 720 to "720p", 480 to "480p").forEach { option ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(
+                                    selected = maxHeight == option.first,
+                                    onClick = { maxHeight = option.first }
+                                )
+                                Text(option.second)
+                            }
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = downloadSubtitles,
+                            onCheckedChange = { downloadSubtitles = it }
+                        )
+                        Text("同时下载字幕（含自动字幕）")
+                    }
+                    Text(
+                        "播放列表默认按顺序下载；个别条目失败时会继续处理其余条目。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    preferences.edit()
+                        .putBoolean("audio_only", audioOnly)
+                        .putInt("max_height", maxHeight)
+                        .putBoolean("download_subtitles", downloadSubtitles)
+                        .apply()
+                    downloadSettingsDialog = false
+                    Toast.makeText(context, "下载设置已保存", Toast.LENGTH_SHORT).show()
+                }) { Text("保存设置") }
+            },
+            dismissButton = {
+                TextButton(onClick = { downloadSettingsDialog = false }) { Text("关闭") }
+            }
+        )
     }
 
     if (historyDialog) {
