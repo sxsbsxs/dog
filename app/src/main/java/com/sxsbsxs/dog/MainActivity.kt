@@ -378,6 +378,14 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        if (download.queuedCount > 0) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "队列中还有 " + download.queuedCount + " 个任务",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                         if (download.running || download.progress > 0) {
                             Spacer(Modifier.height(14.dp))
                             LinearProgressIndicator(
