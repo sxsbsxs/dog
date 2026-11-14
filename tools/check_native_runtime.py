@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate that each APK ABI carries the Python and native media runtime."""
+"""Verify Android APK native ABI payloads for yt-dlp, FFmpeg, aria2c and Dog."""
 
 from __future__ import annotations
 
@@ -9,12 +9,12 @@ import zipfile
 from collections import defaultdict
 from pathlib import Path
 
-# Names match the upstream youtubedl-android AAR packaging:
-# libpython.so + libpython.zip.so, QuickJS, and zipped FFmpeg/aria2c runtimes.
+# Names mirror the Android runtime's JNI libraries and its packaged tool archives.
 REQUIRED_PER_ABI = {
     "libpython.so",
     "libpython.zip.so",
     "libqjs.so",
+    "libffmpeg.so",
     "libffmpeg.zip.so",
     "libaria2c.zip.so",
     "libdogmedia.so",

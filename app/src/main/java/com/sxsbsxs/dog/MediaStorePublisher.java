@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Locale;
+import java.util.zip.CRC32;
 
 /**
  * Java-side Android storage adapter. It publishes complete files to the public
@@ -28,8 +29,8 @@ public final class MediaStorePublisher {
     private MediaStorePublisher() {}
 
     /**
-     * Publishes one completed file. On Android 9 and older, keeps the file in
-     * the application's private download directory and returns its path.
+     * Publishes one completed file. The C implementation calculates a source
+     * fingerprint; Java recalculates it during the copy and rejects corruption.
      */
     public static String publish(Context context, File source) throws IOException {
         if (source == null || !source.isFile() || source.length() <= 0L) {
@@ -40,15 +41,17 @@ public final class MediaStorePublisher {
             return source.getAbsolutePath();
         }
 
+        String expectedFingerprint = NativeMediaProbe.calculateFingerprint(source.getAbsolutePath());
+        if (expectedFingerprint == null || expectedFingerprint.isEmpty()) {
+            throw new IOException("Native C checksum could not read the downloaded file");
+        }
+
         ContentResolver resolver = context.getContentResolver();
         String displayName = uniqueDisplayName(resolver, source.getName());
 
         int dot = displayName.lastIndexOf('.');
         String extension = dot >= 0 ? displayName.substring(dot + 1).toLowerCase(Locale.ROOT) : "";
         String mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
-
-        // C++ JNI file-signature detection is a fallback only. Known extensions
-        // remain authoritative (for example, M4A should not become video/mp4).
         if (mimeType == null || mimeType.isEmpty()) {
             String detectedMimeType = NativeMediaProbe.detectMimeType(source.getAbsolutePath());
             mimeType = detectedMimeType == null || detectedMimeType.isEmpty()
@@ -69,6 +72,9 @@ public final class MediaStorePublisher {
 
         boolean published = false;
         try {
+            CRC32 copiedChecksum = new CRC32();
+            long copiedBytes = 0L;
+
             try (InputStream input = new FileInputStream(source);
                  OutputStream output = resolver.openOutputStream(itemUri, "w")) {
                 if (output == null) {
@@ -78,8 +84,16 @@ public final class MediaStorePublisher {
                 int count;
                 while ((count = input.read(buffer)) != -1) {
                     output.write(buffer, 0, count);
+                    copiedChecksum.update(buffer, 0, count);
+                    copiedBytes += count;
                 }
                 output.flush();
+            }
+
+            String actualFingerprint = copiedBytes + ":" +
+                    String.format(Locale.ROOT, "%08x", copiedChecksum.getValue());
+            if (!expectedFingerprint.equals(actualFingerprint)) {
+                throw new IOException("Media copy integrity check failed");
             }
 
             ContentValues ready = new ContentValues();
