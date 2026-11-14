@@ -234,7 +234,9 @@ public final class VideoInfoService {
                 new InputStreamReader(new FileInputStream(cookieFile), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                if (line.isEmpty() || line.startsWith("#")) continue;
+                // Netscape cookie jars prefix HttpOnly rows with #HttpOnly_.
+                // These are real cookies (including SESSDATA), not comments.
+                if (line.isEmpty() || (line.startsWith("#") && !line.startsWith("#HttpOnly_"))) continue;
                 String[] fields = line.split("\\t", -1);
                 if (fields.length >= 7 && cookieName.equals(fields[5]) && !fields[6].isEmpty()) {
                     return true;
