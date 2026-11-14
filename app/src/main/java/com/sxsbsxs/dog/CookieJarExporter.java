@@ -31,21 +31,24 @@ public final class CookieJarExporter {
 
         Map<String, String> rows = new LinkedHashMap<>();
         Set<String> domains = new LinkedHashSet<>();
+        Set<String> fallbackDomains = new LinkedHashSet<>();
         File databaseFile = new File(
                 context.getDataDir(),
                 "app_webview/Default/Cookies"
         );
 
         if (databaseFile.isFile()) {
-            readDatabase(databaseFile, rows, domains);
+            readDatabase(databaseFile, rows, domains, fallbackDomains);
         }
 
-        // Android's CookieManager knows how to return decrypted cookies even on
-        // WebView versions that store encrypted_value in the SQLite database.
-        for (String domain : domains) {
+        // Android's CookieManager can return decrypted values for rows where
+        // Chromium stores the bytes in encrypted_value instead of value.
+        for (String domain : fallbackDomains) {
             addManagerCookies(manager, domain, rows);
         }
-        addManagerCookies(manager, originUrl, rows);
+        if (!hasDatabaseCookieForOrigin(domains, originUrl)) {
+            addManagerCookies(manager, originUrl, rows);
+        }
 
         if (rows.isEmpty()) {
             throw new IOException(
@@ -66,7 +69,8 @@ public final class CookieJarExporter {
     private static void readDatabase(
             File databaseFile,
             Map<String, String> rows,
-            Set<String> domains
+            Set<String> domains,
+            Set<String> fallbackDomains
     ) {
         SQLiteDatabase database = null;
         Cursor cursor = null;
@@ -113,7 +117,10 @@ public final class CookieJarExporter {
 
                 // An empty database value can mean WebView stored the actual bytes
                 // in encrypted_value. CookieManager fallback below fills these rows.
-                if (value == null || value.isEmpty()) continue;
+                if (value == null || value.isEmpty()) {
+                    fallbackDomains.add(domain);
+                    continue;
+                }
 
                 putCookie(rows, domain, path, secure, expiry, name, value, httpOnly);
             }
@@ -123,6 +130,24 @@ public final class CookieJarExporter {
             if (cursor != null) cursor.close();
             if (database != null) database.close();
         }
+    }
+
+    private static boolean hasDatabaseCookieForOrigin(Set<String> domains, String originUrl) {
+        try {
+            String host = Uri.parse(originUrl).getHost();
+            if (host == null || host.isEmpty()) return false;
+            host = host.toLowerCase(Locale.ROOT);
+            for (String domain : domains) {
+                String normalized = domain.toLowerCase(Locale.ROOT).replaceFirst("^\\.+", "");
+                if (host.equals(normalized) || host.endsWith("." + normalized) ||
+                        normalized.endsWith("." + host)) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {
+            // The caller's origin fallback will handle malformed URLs.
+        }
+        return false;
     }
 
     private static long toUnixSeconds(long storedExpiry) {
