@@ -52,6 +52,8 @@ class DownloadService : Service() {
 
         downloadJob = serviceScope.launch {
             val directory = downloadDirectory()
+            val beforeDownload = fileSnapshot(directory)
+
             try {
                 YtDlpEngine.initialize(applicationContext)
 
@@ -64,6 +66,9 @@ class DownloadService : Service() {
                     addOption("--no-mtime")
                     addOption("--concurrent-fragments", "4")
                     addOption("--no-warnings")
+
+                    // Native aria2c (C++) is used by yt-dlp for HTTP segment transfers.
+                    addOption("--downloader", "libaria2c.so")
                 }
 
                 val cookie = getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
@@ -71,7 +76,9 @@ class DownloadService : Service() {
                     .orEmpty()
                     .removePrefix("Cookie:")
                     .trim()
-                if (cookie.isNotEmpty()) request.addOption("--add-header", "Cookie:$cookie")
+                if (cookie.isNotEmpty()) {
+                    request.addOption("--add-header", "Cookie:$cookie")
+                }
 
                 var lastProgress = -1
                 YoutubeDL.getInstance().execute(request, PROCESS_ID) { progress, eta, _ ->
@@ -82,6 +89,7 @@ class DownloadService : Service() {
                         "正在下载 · $percent%"
                     }
                     DownloadState.updateProgress(percent, message)
+
                     if (percent != lastProgress) {
                         lastProgress = percent
                         runCatching {
@@ -91,9 +99,28 @@ class DownloadService : Service() {
                     }
                 }
 
-                DownloadState.completed(directory.absolutePath)
+                // Java MediaStore bridge publishes completed files into public Downloads/Dog.
+                val finishedFiles = changedFiles(directory, beforeDownload)
+                var publishedCount = 0
+                finishedFiles.forEach { file ->
+                    runCatching { MediaStorePublisher.publish(this@DownloadService, file) }
+                        .onSuccess { publishedCount++ }
+                }
+
+                val savedLocation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && publishedCount > 0) {
+                    "公共下载目录：Download/Dog（$publishedCount 个文件）"
+                } else {
+                    directory.absolutePath
+                }
+
+                DownloadState.completed(savedLocation)
+                val doneMessage = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && publishedCount > 0) {
+                    "下载完成，已保存到 Download/Dog"
+                } else {
+                    "下载完成"
+                }
                 getSystemService(NotificationManager::class.java)
-                    .notify(NOTIFICATION_ID, notification("下载完成", 100, false))
+                    .notify(NOTIFICATION_ID, notification(doneMessage, 100, false))
                 stopForeground(STOP_FOREGROUND_DETACH)
             } catch (cancelled: CancellationException) {
                 DownloadState.canceled()
@@ -122,6 +149,22 @@ class DownloadService : Service() {
         val base = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: filesDir
         return File(base, "Dog").apply { mkdirs() }
     }
+
+    private fun fileSnapshot(root: File): Map<String, String> =
+        root.walkTopDown()
+            .filter { it.isFile && it.length() > 0L }
+            .associate { it.absolutePath to "${it.length()}:${it.lastModified()}" }
+
+    private fun changedFiles(root: File, before: Map<String, String>): List<File> =
+        root.walkTopDown()
+            .filter { file ->
+                file.isFile &&
+                    file.length() > 0L &&
+                    !file.name.endsWith(".part", ignoreCase = true) &&
+                    !file.name.endsWith(".ytdl", ignoreCase = true) &&
+                    before[file.absolutePath] != "${file.length()}:${file.lastModified()}"
+            }
+            .toList()
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
