@@ -133,9 +133,7 @@ public final class SecureCookieStore {
         if (host == null || host.isEmpty()) {
             throw new IllegalArgumentException("无法识别授权网站，Cookie 未保存");
         }
-        String profileKey = COOKIE_SITE_PREFIX +
-                Base64.encodeToString(host.toLowerCase(java.util.Locale.ROOT)
-                        .getBytes(StandardCharsets.UTF_8), Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
+        String profileKey = profileKeyForHost(host);
 
         // One independently encrypted profile per login origin. Re-authenticating
         // a site replaces that site's profile without disturbing other sites.
@@ -145,6 +143,40 @@ public final class SecureCookieStore {
                 .remove(ENCRYPTED_KEY)
                 .remove(LEGACY_KEY)
                 .apply();
+    }
+
+
+    /** Returns only authorized site names, never cookie values. */
+    public static synchronized java.util.List<String> listAuthorizedSites(Context context) {
+        java.util.List<String> sites = new java.util.ArrayList<>();
+        for (String key : preferences(context).getAll().keySet()) {
+            if (!key.startsWith(COOKIE_SITE_PREFIX)) continue;
+            String encodedHost = key.substring(COOKIE_SITE_PREFIX.length());
+            try {
+                String host = new String(
+                        Base64.decode(encodedHost, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING),
+                        StandardCharsets.UTF_8
+                );
+                if (!host.isEmpty()) sites.add(host);
+            } catch (Exception ignored) {
+                // Ignore malformed preference keys without exposing stored values.
+            }
+        }
+        java.util.Collections.sort(sites, String.CASE_INSENSITIVE_ORDER);
+        return sites;
+    }
+
+    /** Removes one site's encrypted profile without changing other logins. */
+    public static synchronized void removeAuthorizedSite(Context context, String host) {
+        if (host == null || host.trim().isEmpty()) return;
+        preferences(context).edit().remove(profileKeyForHost(host)).apply();
+    }
+
+    private static String profileKeyForHost(String host) {
+        return COOKIE_SITE_PREFIX +
+                Base64.encodeToString(host.trim().toLowerCase(java.util.Locale.ROOT)
+                        .getBytes(StandardCharsets.UTF_8),
+                        Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
     }
 
     private static String mergeCookieJars(String previous, String incoming) {

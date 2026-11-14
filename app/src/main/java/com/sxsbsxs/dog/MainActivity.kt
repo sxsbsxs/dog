@@ -214,6 +214,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
 
     var url by rememberSaveable { mutableStateOf(initialUrl.orEmpty()) }
     var hasCookieJar by remember { mutableStateOf(SecureCookieStore.hasCookieJar(context)) }
+    var authorizedSites by remember { mutableStateOf(SecureCookieStore.listAuthorizedSites(context)) }
     var cookieDialog by remember { mutableStateOf(false) }
     var historyDialog by remember { mutableStateOf(false) }
     var historyJson by remember { mutableStateOf(DownloadHistoryStore.read(context)) }
@@ -237,6 +238,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
     val loginLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        authorizedSites = SecureCookieStore.listAuthorizedSites(context)
         hasCookieJar = SecureCookieStore.hasCookieJar(context)
         if (result.resultCode == Activity.RESULT_OK) {
             Toast.makeText(context, "网站登录状态已保存", Toast.LENGTH_SHORT).show()
@@ -272,7 +274,11 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                         }) {
                             Icon(Icons.Default.History, contentDescription = "下载记录")
                         }
-                        IconButton(onClick = { cookieDialog = true }) {
+                        IconButton(onClick = {
+                            authorizedSites = SecureCookieStore.listAuthorizedSites(context)
+                            hasCookieJar = SecureCookieStore.hasCookieJar(context)
+                            cookieDialog = true
+                        }) {
                             Icon(Icons.Default.Settings, contentDescription = "账号授权")
                         }
                     }
@@ -747,16 +753,47 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
             onDismissRequest = { cookieDialog = false },
             title = { Text("网站账号授权") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text(
                         "不需要手动查找 Cookie。先填写视频链接，然后在应用内打开对应网站登录，登录完成后点击“完成授权”。",
                         style = MaterialTheme.typography.bodySmall
                     )
                     Text(
-                        if (hasCookieJar) "本机已保存网页登录 Cookie，仅对已登录的网站生效。" else "当前尚未保存网页登录状态。",
+                        if (hasCookieJar) "本机已保存网页登录状态。" else "当前尚未保存网页登录状态。",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (authorizedSites.isNotEmpty()) {
+                        Text("已授权的网站（${authorizedSites.size}）", style = MaterialTheme.typography.titleSmall)
+                        authorizedSites.forEach { site ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    site,
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                TextButton(onClick = {
+                                    SecureCookieStore.removeAuthorizedSite(context, site)
+                                    authorizedSites = SecureCookieStore.listAuthorizedSites(context)
+                                    hasCookieJar = SecureCookieStore.hasCookieJar(context)
+                                    Toast.makeText(context, "已移除 $site 的授权", Toast.LENGTH_SHORT).show()
+                                }) { Text("移除") }
+                            }
+                        }
+                    } else if (hasCookieJar) {
+                        Text(
+                            "检测到旧版本保存的授权信息。新登录的网站会显示在这里。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     Text(
                         "登录信息只保存在本机并经过加密。下载时会发送给对应的网站；部分平台可能限制应用内登录。",
                         style = MaterialTheme.typography.labelSmall,
@@ -782,6 +819,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                     if (hasCookieJar) {
                         TextButton(onClick = {
                             SecureCookieStore.clear(context)
+                            authorizedSites = emptyList()
                             hasCookieJar = false
                             cookieDialog = false
                             Toast.makeText(context, "已清除本机授权", Toast.LENGTH_SHORT).show()
