@@ -25,15 +25,17 @@ public final class VideoInfoService {
         public final String resolution;
         public final String fileSize;
         public final String extractor;
+        public final String thumbnail;
 
         Preview(String title, String uploader, String duration, String resolution,
-                String fileSize, String extractor) {
+                String fileSize, String extractor, String thumbnail) {
             this.title = title;
             this.uploader = uploader;
             this.duration = duration;
             this.resolution = resolution;
             this.fileSize = fileSize;
             this.extractor = extractor;
+            this.thumbnail = thumbnail;
         }
     }
 
@@ -68,7 +70,8 @@ public final class VideoInfoService {
                         ? info.getFileSizeApproximate() : info.getFileSize();
                 String size = bytes > 0 ? formatSize(bytes) : "未知";
                 String extractor = firstNonEmpty(info.getExtractor(), info.getExtractorKey(), "yt-dlp");
-                Preview preview = new Preview(title, uploader, duration, resolution, size, extractor);
+                String thumbnail = firstNonEmpty(info.getThumbnail(), "");
+                Preview preview = new Preview(title, uploader, duration, resolution, size, extractor, thumbnail);
                 callback.onSuccess(preview);
             } catch (Throwable failure) {
                 String message = failure.getMessage();

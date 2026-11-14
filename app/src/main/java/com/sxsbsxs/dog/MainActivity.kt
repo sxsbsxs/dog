@@ -1,6 +1,7 @@
 package com.sxsbsxs.dog
 
 import android.Manifest
+import android.graphics.BitmapFactory
 import android.app.Activity
 import android.content.ClipboardManager
 import android.content.Context
@@ -36,6 +37,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.TopAppBar
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -96,6 +99,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -109,6 +113,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
+import java.net.URL
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.util.Date
 import java.util.Locale
 
@@ -582,31 +589,50 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
 
                         if (preview != null) {
                             val info = preview!!
-                            Column(
+                            Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(5.dp)
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.Top
                             ) {
-                                Text(
-                                    info.title,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
+                                VideoThumbnail(
+                                    url = info.thumbnail,
+                                    modifier = Modifier.size(width = 112.dp, height = 76.dp)
                                 )
-                                if (info.uploader.isNotBlank()) {
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
                                     Text(
-                                        "作者：" + info.uploader,
+                                        info.title,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    if (info.uploader.isNotBlank()) {
+                                        Text(
+                                            "作者：" + info.uploader,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    Text(
+                                        listOf(info.duration, info.resolution, info.fileSize)
+                                            .filter { it.isNotBlank() && it != "未知" }
+                                            .joinToString("  ·  "),
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 2
+                                    )
+                                    Text(
+                                        info.extractor,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        maxLines = 1
                                     )
                                 }
-                                Text(
-                                    listOf(info.duration, info.resolution, info.fileSize, info.extractor)
-                                        .filter { it.isNotBlank() && it != "未知" }
-                                        .joinToString("  ·  "),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
                             }
                         } else {
                             Text(
@@ -1094,6 +1120,55 @@ private fun SettingsGroup(
         Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
+    }
+}
+
+@Composable
+private fun VideoThumbnail(url: String, modifier: Modifier = Modifier) {
+    val bitmap by produceState<android.graphics.Bitmap?>(
+        initialValue = null,
+        key1 = url
+    ) {
+        value = if (url.isBlank()) null else withContext(Dispatchers.IO) {
+            runCatching {
+                val connection = URL(url).openConnection().apply {
+                    connectTimeout = 7000
+                    readTimeout = 10000
+                    useCaches = true
+                }
+                connection.getInputStream().use { stream ->
+                    BitmapFactory.decodeStream(
+                        stream,
+                        null,
+                        BitmapFactory.Options().apply {
+                            inSampleSize = 2
+                            inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+                        }
+                    )
+                }
+            }.getOrNull()
+        }
+    }
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap!!.asImageBitmap(),
+                contentDescription = "视频封面",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Icon(
+                Icons.Default.Link,
+                contentDescription = null,
+                modifier = Modifier.padding(25.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
     }
 }
 
