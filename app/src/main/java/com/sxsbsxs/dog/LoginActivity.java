@@ -52,6 +52,7 @@ public class LoginActivity extends Activity {
     private Button finishButton;
     private String loginUrl;
     private boolean saving;
+    private boolean pageError;
     private Dialog popupDialog;
     private WebView popupWebView;
 
@@ -161,6 +162,7 @@ public class LoginActivity extends Activity {
             ) {
                 super.onReceivedError(view, request, error);
                 if (!popup && request.isForMainFrame() && statusText != null) {
+                    pageError = true;
                     statusText.setText("网页加载失败：" + error.getDescription() +
                             "。请检查网络，或该网站是否限制应用内登录。");
                 }
@@ -175,6 +177,7 @@ public class LoginActivity extends Activity {
                 super.onReceivedHttpError(view, request, response);
                 if (!popup && request.isForMainFrame() && response.getStatusCode() >= 400 &&
                         statusText != null) {
+                    pageError = true;
                     statusText.setText("网站返回 HTTP " + response.getStatusCode() +
                             "。可能需要更新网页、重新登录，或该站点不允许内嵌登录。");
                 }
@@ -183,6 +186,7 @@ public class LoginActivity extends Activity {
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
                 super.onPageStarted(view, url, favicon);
+                if (requestIsMainFrame(view)) pageError = false;
                 rememberVisitedUrl(url);
             }
 
@@ -191,7 +195,7 @@ public class LoginActivity extends Activity {
                 super.onPageFinished(view, url);
                 rememberVisitedUrl(url);
                 CookieManager.getInstance().flush();
-                if (!popup && statusText != null && !saving) {
+                if (!popup && statusText != null && !saving && !pageError) {
                     statusText.setText("网页已加载。登录成功后点击“完成授权”；不支持内嵌登录的网站可能会提示使用其他浏览器。");
                 }
             }
@@ -276,6 +280,10 @@ public class LoginActivity extends Activity {
                 showSaveError("授权信息保存失败：" + failure.getMessage());
             }
         });
+    }
+
+    private boolean requestIsMainFrame(WebView view) {
+        return view == webView;
     }
 
     private void rememberVisitedUrl(String value) {
