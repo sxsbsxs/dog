@@ -115,7 +115,10 @@ public final class SecureCookieStore {
         if (cookieJar.isEmpty()) return null;
 
         File cache = context.getCacheDir();
-        if (cache == null && !cache.mkdirs()) {
+        if (cache == null) {
+            throw new IOException("应用缓存目录不可用");
+        }
+        if (!cache.exists() && !cache.mkdirs()) {
             throw new IOException("无法创建 Cookie 临时目录");
         }
 
