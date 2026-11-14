@@ -35,6 +35,14 @@ object DownloadState {
         )
     }
 
+    fun queueCleared() {
+        mutableState.value = mutableState.value.copy(
+            running = true,
+            message = "等待队列已清空，当前下载继续进行",
+            queuedCount = 0
+        )
+    }
+
     fun updateProgress(progress: Int, message: String) {
         mutableState.value = mutableState.value.copy(
             running = true,

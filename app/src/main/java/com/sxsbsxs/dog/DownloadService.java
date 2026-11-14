@@ -42,6 +42,7 @@ import kotlin.jvm.functions.Function3;
 public class DownloadService extends Service {
     public static final String EXTRA_URL = "extra_url";
     public static final String ACTION_CANCEL = "com.sxsbsxs.dog.CANCEL_DOWNLOAD";
+    public static final String ACTION_CLEAR_QUEUE = "com.sxsbsxs.dog.CLEAR_DOWNLOAD_QUEUE";
 
     private static final String TAG = "DogDownload";
     private static final String CHANNEL_ID = "dog_downloads";
@@ -68,6 +69,24 @@ public class DownloadService extends Service {
             cancelDownload();
             stopForeground(STOP_FOREGROUND_REMOVE);
             stopSelfResult(startId);
+            return START_NOT_STICKY;
+        }
+
+        if (intent != null && ACTION_CLEAR_QUEUE.equals(intent.getAction())) {
+            synchronized (queueLock) {
+                latestStartId = startId;
+                pendingUrls.clear();
+                if (running.get()) {
+                    DownloadState.INSTANCE.queueCleared();
+                    NotificationManager manager = getSystemService(NotificationManager.class);
+                    if (manager != null) {
+                        manager.notify(NOTIFICATION_ID,
+                                buildNotification("等待队列已清空 · 当前下载继续", 0, true));
+                    }
+                } else {
+                    stopSelfResult(startId);
+                }
+            }
             return START_NOT_STICKY;
         }
 
@@ -498,6 +517,12 @@ public class DownloadService extends Service {
 
     public static void cancel(Context context) {
         Intent intent = new Intent(context, DownloadService.class).setAction(ACTION_CANCEL);
+        context.startService(intent);
+    }
+
+    /** Clears only pending URLs. The currently running download is left untouched. */
+    public static void clearQueue(Context context) {
+        Intent intent = new Intent(context, DownloadService.class).setAction(ACTION_CLEAR_QUEUE);
         context.startService(intent);
     }
 }

@@ -508,7 +508,17 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(14.dp)
                             ) {
-                                Text("取消下载")
+                                Text("取消当前下载及全部队列")
+                            }
+                            if (download.queuedCount > 0) {
+                                Spacer(Modifier.height(8.dp))
+                                OutlinedButton(
+                                    onClick = { DownloadService.clearQueue(context) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Text("只清空等待队列（当前下载继续）")
+                                }
                             }
                         }
                         if (download.outputPath.isNotBlank()) {
