@@ -128,6 +128,7 @@ public class DownloadService extends Service {
 
     private void runDownload(String url, int generation) {
         File temporaryCookieFile = null;
+        final StringBuilder processOutputTail = new StringBuilder();
         try {
             File outputDirectory = getDownloadDirectory();
             Map<String, String> before = snapshotFiles(outputDirectory);
@@ -160,7 +161,6 @@ public class DownloadService extends Service {
             }
 
             final int[] lastProgress = {-1};
-            final StringBuilder processOutputTail = new StringBuilder();
             Function3<Float, Long, String, Unit> progressCallback = (progress, eta, outputLine) -> {
                 // Capture the tail because redirecting stderr into stdout is required
                 // for progress parsing, and the dependency then leaves stderr empty.
