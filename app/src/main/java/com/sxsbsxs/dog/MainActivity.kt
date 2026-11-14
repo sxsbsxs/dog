@@ -258,7 +258,9 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
 
     val startDownload: () -> Unit = {
         val value = url.trim()
-        if (!isHttpUrl(value)) {
+        if (engineUpdating || previewLoading) {
+            Toast.makeText(context, "请等待当前解析或引擎更新完成", Toast.LENGTH_SHORT).show()
+        } else if (!isHttpUrl(value)) {
             Toast.makeText(context, "请输入有效的视频链接", Toast.LENGTH_SHORT).show()
         } else {
             onDownload(value)
@@ -395,7 +397,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                             })
                         }
                     },
-                    enabled = url.isNotBlank() && !previewLoading,
+                    enabled = url.isNotBlank() && !previewLoading && !engineUpdating && !download.running,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp)
                 ) {
@@ -446,7 +448,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                 Spacer(Modifier.height(14.dp))
                 Button(
                     onClick = startDownload,
-                    enabled = url.isNotBlank(),
+                    enabled = url.isNotBlank() && !engineUpdating && !previewLoading,
                     modifier = Modifier.fillMaxWidth().height(54.dp),
                     shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors()
@@ -669,7 +671,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                                 Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                             }
                         },
-                        enabled = !engineUpdating,
+                        enabled = !engineUpdating && !download.running && !previewLoading,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         if (engineUpdating) {
@@ -681,7 +683,9 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                         }
                     }
                     Text(
-                        "更新只刷新本机 yt-dlp 网站提取器，不会更新 Dog 应用。解析失败的网站可先尝试更新解析引擎。",
+                        if (download.running) "当前有下载任务，暂不能更新解析引擎。"
+                        else if (previewLoading) "正在解析视频信息，完成后才能更新引擎。"
+                        else "更新只刷新本机 yt-dlp 网站提取器，不会更新 Dog 应用。解析失败的网站可先尝试更新解析引擎。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
