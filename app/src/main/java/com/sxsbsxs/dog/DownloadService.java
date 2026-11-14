@@ -217,12 +217,10 @@ public class DownloadService extends Service {
         } catch (YoutubeDL.CanceledException canceled) {
             DownloadHistoryStore.record(this, url, "", "", "canceled", "已取消下载");
             DownloadState.INSTANCE.canceled();
-            removeNotification();
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             DownloadHistoryStore.record(this, url, "", "", "canceled", "已取消下载");
             DownloadState.INSTANCE.canceled();
-            removeNotification();
         } catch (Throwable failure) {
             String detail = failure.getMessage() == null ? "未知错误" : failure.getMessage();
             if (detail.length() > 180) detail = detail.substring(0, 180) + "…";
