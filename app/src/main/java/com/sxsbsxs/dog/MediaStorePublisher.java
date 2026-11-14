@@ -15,6 +15,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Locale;
 
 /**
  * Java-side Android storage adapter. It publishes complete files to the public
@@ -42,15 +43,17 @@ public final class MediaStorePublisher {
         ContentResolver resolver = context.getContentResolver();
         String displayName = uniqueDisplayName(resolver, source.getName());
 
-        String extension = MimeTypeMap.getFileExtensionFromUrl(displayName);
-        String mimeType = extension == null ? null :
-                MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.toLowerCase());
-        String detectedMimeType = NativeMediaProbe.detectMimeType(source.getAbsolutePath());
-        if (detectedMimeType != null && !detectedMimeType.isEmpty()) {
-            mimeType = detectedMimeType;
-        }
+        int dot = displayName.lastIndexOf('.');
+        String extension = dot >= 0 ? displayName.substring(dot + 1).toLowerCase(Locale.ROOT) : "";
+        String mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+
+        // C++ JNI file-signature detection is a fallback only. Known extensions
+        // remain authoritative (for example, M4A should not become video/mp4).
         if (mimeType == null || mimeType.isEmpty()) {
-            mimeType = "application/octet-stream";
+            String detectedMimeType = NativeMediaProbe.detectMimeType(source.getAbsolutePath());
+            mimeType = detectedMimeType == null || detectedMimeType.isEmpty()
+                    ? "application/octet-stream"
+                    : detectedMimeType;
         }
 
         ContentValues values = new ContentValues();
