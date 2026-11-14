@@ -403,15 +403,6 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                             Text("Dog", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                             Text(pageLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                    },
-                    actions = {
-                        IconButton(onClick = {
-                            authorizedSites = SecureCookieStore.listAuthorizedSites(context)
-                            hasCookieJar = SecureCookieStore.hasCookieJar(context)
-                            selectedTab = 3
-                        }) {
-                            Icon(Icons.Default.Settings, contentDescription = "设置")
-                        }
                     }
                 )
             },
