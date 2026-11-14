@@ -7,15 +7,28 @@ data class DownloadUiState(
     val running: Boolean = false,
     val progress: Int = 0,
     val message: String = "粘贴视频链接即可开始",
-    val outputPath: String = ""
+    val outputPath: String = "",
+    val queuedCount: Int = 0
 )
 
 object DownloadState {
     private val mutableState = MutableStateFlow(DownloadUiState())
     val state = mutableState.asStateFlow()
 
-    fun started() {
-        mutableState.value = DownloadUiState(running = true, message = "正在准备下载…")
+    fun started(queuedCount: Int = 0) {
+        mutableState.value = DownloadUiState(
+            running = true,
+            message = if (queuedCount > 0) "正在准备下载 · 后面还有 $queuedCount 个任务" else "正在准备下载…",
+            queuedCount = queuedCount
+        )
+    }
+
+    fun queued(count: Int) {
+        mutableState.value = mutableState.value.copy(
+            running = true,
+            message = "已加入下载队列，前面正在处理当前任务",
+            queuedCount = count
+        )
     }
 
     fun updateProgress(progress: Int, message: String) {
@@ -34,7 +47,8 @@ object DownloadState {
         mutableState.value = DownloadUiState(
             progress = 100,
             message = message,
-            outputPath = path
+            outputPath = path,
+            queuedCount = 0
         )
     }
 
