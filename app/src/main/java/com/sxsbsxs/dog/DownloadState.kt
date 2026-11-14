@@ -27,9 +27,13 @@ object DownloadState {
     }
 
     fun completed(path: String) {
+        completed(path, "下载完成")
+    }
+
+    fun completed(path: String, message: String) {
         mutableState.value = DownloadUiState(
             progress = 100,
-            message = "下载完成",
+            message = message,
             outputPath = path
         )
     }
