@@ -369,7 +369,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None)
                     )
                     Text(
-                        "Cookie 使用 Android Keystore 加密后保存在本机，不会上传到服务器。",
+                        "Cookie 使用 Android Keystore 加密保存在本机；下载请求会发送给对应的视频网站。",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
