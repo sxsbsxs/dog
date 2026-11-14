@@ -102,18 +102,19 @@ public class DownloadService extends Service {
             temporaryCookieFile = SecureCookieStore.createTemporaryCookieFile(getApplicationContext());
             if (temporaryCookieFile != null) {
                 request.addOption("--cookies", temporaryCookieFile.getAbsolutePath());
-            }
-
-            // Keep compatibility with Cookie headers saved by older Dog versions.
-            String legacyCookie = SecureCookieStore.load(getApplicationContext());
-            if (legacyCookie != null) {
-                legacyCookie = legacyCookie.trim();
-                if (legacyCookie.regionMatches(true, 0, "Cookie:", 0, 7)) {
-                    legacyCookie = legacyCookie.substring(7).trim();
+            } else {
+                // Compatibility with Cookie headers saved by older Dog versions.
+                // Never send an unrestricted legacy header when a scoped cookie jar exists.
+                String legacyCookie = SecureCookieStore.load(getApplicationContext());
+                if (legacyCookie != null) {
+                    legacyCookie = legacyCookie.trim();
+                    if (legacyCookie.regionMatches(true, 0, "Cookie:", 0, 7)) {
+                        legacyCookie = legacyCookie.substring(7).trim();
+                    }
                 }
-            }
-            if (legacyCookie != null && !legacyCookie.isEmpty()) {
-                request.addOption("--add-header", "Cookie: " + legacyCookie);
+                if (legacyCookie != null && !legacyCookie.isEmpty()) {
+                    request.addOption("--add-header", "Cookie: " + legacyCookie);
+                }
             }
 
             final int[] lastProgress = {-1};
