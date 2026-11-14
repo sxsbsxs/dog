@@ -136,6 +136,10 @@ public class DownloadService extends Service {
                 }
             }
 
+            if (generation != activeGeneration || Thread.currentThread().isInterrupted()) {
+                throw new InterruptedException("Download canceled before starting");
+            }
+
             final int[] lastProgress = {-1};
             Function3<Float, Long, String, Unit> progressCallback = (progress, eta, outputLine) -> {
                 int percent = progress == null ? 0 : Math.max(0, Math.min(100, progress.intValue()));
@@ -155,6 +159,9 @@ public class DownloadService extends Service {
             };
 
             YoutubeDL.getInstance().execute(request, PROCESS_ID, progressCallback);
+            if (generation != activeGeneration || Thread.currentThread().isInterrupted()) {
+                throw new InterruptedException("Download canceled after extraction");
+            }
 
             List<File> completedFiles = findCompletedFiles(outputDirectory, before);
             if (completedFiles.isEmpty()) {
