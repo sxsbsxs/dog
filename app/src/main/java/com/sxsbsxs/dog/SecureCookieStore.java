@@ -82,7 +82,7 @@ public final class SecureCookieStore {
         String cookieJar = loadCookieJar(context);
         if (!cookieJar.startsWith(COOKIE_FILE_HEADER)) return false;
         for (String line : cookieJar.split("\\n")) {
-            if (!line.isEmpty() && !line.startsWith("#")) return true;
+            if (!line.isEmpty() && (!line.startsWith("#") || line.startsWith("#HttpOnly_"))) return true;
         }
         return false;
     }
@@ -130,7 +130,7 @@ public final class SecureCookieStore {
     private static void addCookieRows(Map<String, String> rows, String jar) {
         if (jar == null || jar.isEmpty()) return;
         for (String line : jar.split("\n")) {
-            if (line.isEmpty() || line.startsWith("#")) continue;
+            if (line.isEmpty() || (line.startsWith("#") && !line.startsWith("#HttpOnly_"))) continue;
             String[] fields = line.split("\t", -1);
             if (fields.length < 7) continue;
 
