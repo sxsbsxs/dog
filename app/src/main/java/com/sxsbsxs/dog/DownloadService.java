@@ -160,10 +160,21 @@ public class DownloadService extends Service {
             }
 
             final int[] lastProgress = {-1};
+            final StringBuilder processOutputTail = new StringBuilder();
             Function3<Float, Long, String, Unit> progressCallback = (progress, eta, outputLine) -> {
-                // The library reports -1 until its stdout parser recognizes a progress line.
-                // Never convert that sentinel into 0%; that makes a missing callback look
-                // like a real download stuck at zero.
+                // Capture the tail because redirecting stderr into stdout is required
+                // for progress parsing, and the dependency then leaves stderr empty.
+                if (outputLine != null && !outputLine.isEmpty()) {
+                    synchronized (processOutputTail) {
+                        processOutputTail.append(outputLine).append('\n');
+                        if (processOutputTail.length() > 6000) {
+                            processOutputTail.delete(0, processOutputTail.length() - 4000);
+                        }
+                    }
+                }
+
+                // The library reports -1 until its parser recognizes a progress line.
+                // Never turn that sentinel into a fake 0% update.
                 if (progress == null || !Float.isFinite(progress) || progress < 0f) {
                     if (lastProgress[0] < 0) {
                         DownloadState.INSTANCE.updateMessage("已连接下载源，正在获取实时进度…");
@@ -186,7 +197,10 @@ public class DownloadService extends Service {
                 return Unit.INSTANCE;
             };
 
-            YoutubeDL.getInstance().execute(request, PROCESS_ID, progressCallback);
+            // 0.18.1's 4-argument overload merges stderr into stdout. yt-dlp
+            // progress output can be written to stderr; without this flag the
+            // upstream StreamProcessExtractor never sees those lines.
+            YoutubeDL.getInstance().execute(request, PROCESS_ID, true, progressCallback);
             if (generation != activeGeneration || Thread.currentThread().isInterrupted()) {
                 throw new InterruptedException("Download canceled after extraction");
             }
@@ -271,7 +285,11 @@ public class DownloadService extends Service {
             DownloadHistoryStore.record(this, url, "", "", "canceled", "已取消下载");
             DownloadState.INSTANCE.canceled();
         } catch (Throwable failure) {
-            String message = formatDownloadError(failure);
+            String diagnostic;
+            synchronized (processOutputTail) {
+                diagnostic = processOutputTail.toString();
+            }
+            String message = formatDownloadError(failure, diagnostic);
             DownloadHistoryStore.record(this, url, "", "", "failed", message);
             DownloadState.INSTANCE.failed(message);
             NotificationManager manager = getSystemService(NotificationManager.class);
@@ -322,11 +340,16 @@ public class DownloadService extends Service {
         return matcher.find() ? matcher.group(1) : "";
     }
 
-    private String formatDownloadError(Throwable failure) {
+    private String formatDownloadError(Throwable failure, String processOutputTail) {
         String detail = failure == null ? "" : failure.getMessage();
-        if (detail == null || detail.trim().isEmpty()) {
-            detail = failure == null ? "未知错误" : failure.getClass().getSimpleName();
+        if (detail == null || detail.trim().isEmpty() ||
+                (failure != null && failure.getClass().getSimpleName().equals(detail.trim()))) {
+            String output = processOutputTail == null ? "" : processOutputTail.trim();
+            detail = output.isEmpty()
+                    ? (failure == null ? "未知错误" : failure.getClass().getSimpleName())
+                    : output;
         }
+        if (detail.length() > 1800) detail = detail.substring(detail.length() - 1800);
         String normalized = detail.toLowerCase(java.util.Locale.ROOT);
         String friendly;
         if (normalized.contains("unsupported url") ||
@@ -370,6 +393,7 @@ public class DownloadService extends Service {
         request.addOption("--progress-template",
                 "download:[download] %(progress._percent_str)s of %(progress._total_bytes_str)s at %(progress._speed_str)s ETA %(progress._eta_str)s");
         request.addOption("--progress-delta", "1");
+        request.addOption("--no-colors");
         request.addOption("--no-mtime");
         request.addOption("--retries", "10");
         request.addOption("--fragment-retries", "10");
