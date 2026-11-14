@@ -244,6 +244,7 @@ public class DownloadService extends Service {
                 Log.w(TAG, "Could not remove temporary plaintext cookie file");
             }
 
+            int completedStartId = -1;
             synchronized (queueLock) {
                 // Ignore completion callbacks from a task invalidated by Cancel.
                 if (generation == activeGeneration) {
@@ -260,9 +261,15 @@ public class DownloadService extends Service {
                     } else {
                         running.set(false);
                         stopForeground(STOP_FOREGROUND_DETACH);
-                        stopSelfResult(latestStartId);
+                        // Capture this generation's latest start ID. If another
+                        // URL arrives immediately after leaving the lock,
+                        // stopSelfResult(oldId) must not stop that new request.
+                        completedStartId = latestStartId;
                     }
                 }
+            }
+            if (completedStartId >= 0) {
+                stopSelfResult(completedStartId);
             }
         }
     }
