@@ -89,21 +89,31 @@ public class DownloadService extends Service {
     }
 
     private void runDownload(String url, int startId) {
+        File temporaryCookieFile = null;
         try {
             File outputDirectory = getDownloadDirectory();
             Map<String, String> before = snapshotFiles(outputDirectory);
             YtDlpEngine.initialize(getApplicationContext());
 
             YoutubeDLRequest request = buildRequest(url, outputDirectory);
-            String cookie = SecureCookieStore.load(getApplicationContext());
-            if (cookie != null) {
-                cookie = cookie.trim();
-                if (cookie.regionMatches(true, 0, "Cookie:", 0, 7)) {
-                    cookie = cookie.substring(7).trim();
+
+            // The in-app login WebView exports a complete Netscape cookie jar.
+            // Materialize it only for this yt-dlp process; the encrypted source stays private.
+            temporaryCookieFile = SecureCookieStore.createTemporaryCookieFile(getApplicationContext());
+            if (temporaryCookieFile != null) {
+                request.addOption("--cookies", temporaryCookieFile.getAbsolutePath());
+            }
+
+            // Keep compatibility with Cookie headers saved by older Dog versions.
+            String legacyCookie = SecureCookieStore.load(getApplicationContext());
+            if (legacyCookie != null) {
+                legacyCookie = legacyCookie.trim();
+                if (legacyCookie.regionMatches(true, 0, "Cookie:", 0, 7)) {
+                    legacyCookie = legacyCookie.substring(7).trim();
                 }
             }
-            if (cookie != null && !cookie.isEmpty()) {
-                request.addOption("--add-header", "Cookie: " + cookie);
+            if (legacyCookie != null && !legacyCookie.isEmpty()) {
+                request.addOption("--add-header", "Cookie: " + legacyCookie);
             }
 
             final int[] lastProgress = {-1};
@@ -192,6 +202,9 @@ public class DownloadService extends Service {
             }
             Log.e(TAG, message, failure);
         } finally {
+            if (temporaryCookieFile != null && temporaryCookieFile.exists() && !temporaryCookieFile.delete()) {
+                Log.w(TAG, "Could not remove temporary plaintext cookie file");
+            }
             running.set(false);
             stopForeground(STOP_FOREGROUND_DETACH);
             stopSelfResult(startId);
