@@ -94,7 +94,11 @@ public final class VideoInfoService {
                 // Use the raw JSON output so every entry in yt-dlp's formats[]
                 // is inspected, rather than trusting a partially mapped model.
                 YoutubeDLResponse response = YoutubeDL.getInstance().execute(request, null, false, null);
-                JSONObject root = parseDumpJson(response.getOut());
+                String rawOutput = response.getOut();
+                int jsonStart = rawOutput == null ? -1 : rawOutput.indexOf('{');
+                String screenMessages = jsonStart > 0 ? rawOutput.substring(0, jsonStart) : "";
+                String extractionDiagnostics = response.getErr() + "\\n" + screenMessages;
+                JSONObject root = parseDumpJson(rawOutput);
                 String title = firstNonEmpty(root.optString("title", ""), root.optString("fulltitle", ""), "未知标题");
                 String uploader = firstNonEmpty(root.optString("uploader", ""), root.optString("uploader_id", ""));
                 String duration = formatDuration(root.optLong("duration", 0L));
@@ -117,7 +121,7 @@ public final class VideoInfoService {
                 boolean bilibili = isBilibiliUrl(url);
                 boolean hasSessData = hasCookie(cookieFile, "SESSDATA");
                 String diagnostic = buildQualityNotice(
-                        bilibili, hasSessData, qualities, videoFormatCount, response.getErr());
+                        bilibili, hasSessData, qualities, videoFormatCount, extractionDiagnostics);
 
                 Preview preview = new Preview(title, uploader, duration, resolution, size,
                         extractor, thumbnail, qualities, diagnostic, videoFormatCount);
