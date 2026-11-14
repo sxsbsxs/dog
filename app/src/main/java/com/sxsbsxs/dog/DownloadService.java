@@ -263,8 +263,6 @@ public class DownloadService extends Service {
     private YoutubeDLRequest buildRequest(String url, File directory) {
         YoutubeDLRequest request = new YoutubeDLRequest(url);
         request.addOption("-o", new File(directory, "%(title).200B.%(ext)s").getAbsolutePath());
-        request.addOption("-f", "bv*+ba/b");
-        request.addOption("--merge-output-format", "mp4");
         request.addOption("--newline");
         request.addOption("--progress");
         request.addOption("--no-mtime");
@@ -272,6 +270,34 @@ public class DownloadService extends Service {
         request.addOption("--fragment-retries", "10");
         request.addOption("--file-access-retries", "3");
         request.addOption("--concurrent-fragments", "4");
+        request.addOption("--yes-playlist");
+        request.addOption("--no-abort-on-error");
+        request.addOption("--embed-metadata");
+
+        android.content.SharedPreferences preferences =
+                getSharedPreferences("dog_settings", Context.MODE_PRIVATE);
+        boolean audioOnly = preferences.getBoolean("audio_only", false);
+        boolean downloadSubtitles = preferences.getBoolean("download_subtitles", false);
+        if (audioOnly) {
+            request.addOption("-x");
+            request.addOption("--audio-format", "mp3");
+            request.addOption("--audio-quality", "0");
+            request.addOption("--embed-thumbnail");
+        } else {
+            int maxHeight = preferences.getInt("max_height", 0);
+            String format = maxHeight > 0
+                    ? "bv*[height<=" + maxHeight + "]+ba/b[height<=" + maxHeight + "]"
+                    : "bv*+ba/b";
+            request.addOption("-f", format);
+            request.addOption("--merge-output-format", "mp4");
+        }
+
+        if (downloadSubtitles) {
+            request.addOption("--write-subs");
+            request.addOption("--write-auto-subs");
+            request.addOption("--sub-langs", "all");
+            if (!audioOnly) request.addOption("--embed-subs");
+        }
 
         // aria2c is the upstream native Android downloader, initialized by YtDlpEngine.
         request.addOption("--downloader", "libaria2c.so");
