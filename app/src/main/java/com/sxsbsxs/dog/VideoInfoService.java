@@ -97,7 +97,7 @@ public final class VideoInfoService {
                 String rawOutput = response.getOut();
                 int jsonStart = rawOutput == null ? -1 : rawOutput.indexOf('{');
                 String screenMessages = jsonStart > 0 ? rawOutput.substring(0, jsonStart) : "";
-                String extractionDiagnostics = response.getErr() + "\\n" + screenMessages;
+                String extractionDiagnostics = response.getErr() + "\n" + screenMessages;
                 JSONObject root = parseDumpJson(rawOutput);
                 String title = firstNonEmpty(root.optString("title", ""), root.optString("fulltitle", ""), "未知标题");
                 String uploader = firstNonEmpty(root.optString("uploader", ""), root.optString("uploader_id", ""));
