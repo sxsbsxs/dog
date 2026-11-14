@@ -222,6 +222,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
     var audioOnly by rememberSaveable { mutableStateOf(preferences.getBoolean("audio_only", false)) }
     var maxHeight by rememberSaveable { mutableStateOf(preferences.getInt("max_height", 0)) }
     var downloadSubtitles by rememberSaveable { mutableStateOf(preferences.getBoolean("download_subtitles", false)) }
+    var downloadPlaylist by rememberSaveable { mutableStateOf(preferences.getBoolean("download_playlist", false)) }
     val download by DownloadState.state.collectAsState()
     val loginLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -463,8 +464,15 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                         )
                         Text("同时下载字幕（含自动字幕）")
                     }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = downloadPlaylist,
+                            onCheckedChange = { downloadPlaylist = it }
+                        )
+                        Text("下载整个播放列表")
+                    }
                     Text(
-                        "播放列表默认按顺序下载；个别条目失败时会继续处理其余条目。",
+                        "默认只下载当前视频；开启播放列表后会按顺序下载全部条目，单个条目失败不会中断列表。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -476,6 +484,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                         .putBoolean("audio_only", audioOnly)
                         .putInt("max_height", maxHeight)
                         .putBoolean("download_subtitles", downloadSubtitles)
+                        .putBoolean("download_playlist", downloadPlaylist)
                         .apply()
                     downloadSettingsDialog = false
                     Toast.makeText(context, "下载设置已保存", Toast.LENGTH_SHORT).show()
