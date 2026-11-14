@@ -102,13 +102,13 @@ public final class CookieJarExporter {
                 String value = cursor.getString(valueIndex);
                 if (host == null || host.isEmpty() || name == null || name.isEmpty()) continue;
 
-                String domain = host.startsWith(".") ? host : host;
-                domains.add(domain);
+                String domain = host;
 
                 long expiry = expiryIndex >= 0 && !cursor.isNull(expiryIndex)
                         ? toUnixSeconds(cursor.getLong(expiryIndex))
                         : 0L;
                 if (expiry > 0L && expiry <= nowSeconds) continue;
+                domains.add(domain);
 
                 String path = pathIndex >= 0 ? cursor.getString(pathIndex) : "/";
                 if (path == null || path.isEmpty()) path = "/";
