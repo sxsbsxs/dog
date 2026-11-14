@@ -277,14 +277,15 @@ public class DownloadService extends Service {
         request.addOption("--fragment-retries", "10");
         request.addOption("--file-access-retries", "3");
         request.addOption("--concurrent-fragments", "4");
-        request.addOption("--yes-playlist");
-        request.addOption("--no-abort-on-error");
         request.addOption("--embed-metadata");
 
         android.content.SharedPreferences preferences =
                 getSharedPreferences("dog_settings", Context.MODE_PRIVATE);
         boolean audioOnly = preferences.getBoolean("audio_only", false);
         boolean downloadSubtitles = preferences.getBoolean("download_subtitles", false);
+        boolean downloadPlaylist = preferences.getBoolean("download_playlist", false);
+        request.addOption(downloadPlaylist ? "--yes-playlist" : "--no-playlist");
+        if (downloadPlaylist) request.addOption("--no-abort-on-error");
         if (audioOnly) {
             request.addOption("-f", "ba/b");
             request.addOption("-x");
