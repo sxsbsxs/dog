@@ -417,7 +417,7 @@ public class DownloadService extends Service {
             pendingUrls.clear();
             activeGeneration++;
             try {
-                YoutubeDL.destroyProcessById(PROCESS_ID);
+                YoutubeDL.getInstance().destroyProcessById(PROCESS_ID);
             } catch (Throwable ignored) {
                 // The process may have exited before the cancel action arrived.
             }

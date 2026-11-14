@@ -20,9 +20,9 @@ public final class YtDlpEngine {
         if (initialized) return;
 
         Context appContext = context.getApplicationContext();
-        YoutubeDL.init(appContext);
-        FFmpeg.init(appContext);
-        Aria2c.init(appContext);
+        YoutubeDL.getInstance().init(appContext);
+        FFmpeg.getInstance().init(appContext);
+        Aria2c.getInstance().init(appContext);
         initialized = true;
     }
 
