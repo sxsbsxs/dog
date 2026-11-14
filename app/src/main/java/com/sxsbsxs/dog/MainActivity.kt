@@ -395,7 +395,9 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
             url = ""
             preview = null
             previewError = ""
-            selectedTab = 3
+            // Keep the user on the download form so progress remains visible,
+            // matching bilibilidl's inline status/progress workflow.
+            selectedTab = 0
         }
     }
 
