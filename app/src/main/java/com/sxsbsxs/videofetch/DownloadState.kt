@@ -14,7 +14,8 @@ data class DownloadUiState(
     val lastUrl: String = "",
     val formatSelector: String = "",
     val audioOnly: Boolean = false,
-    val queuedLabels: List<String> = emptyList()
+    val queuedLabels: List<String> = emptyList(),
+    val diagnostic: String = ""
 )
 
 object DownloadState {
@@ -124,6 +125,10 @@ object DownloadState {
     }
 
     fun failed(message: String) {
+        failed(message, "")
+    }
+
+    fun failed(message: String, diagnostic: String) {
         val previous = mutableState.value
         mutableState.value = DownloadUiState(
             message = message,
@@ -131,7 +136,8 @@ object DownloadState {
             lastUrl = previous.lastUrl,
             formatSelector = previous.formatSelector,
             audioOnly = previous.audioOnly,
-            queuedLabels = previous.queuedLabels
+            queuedLabels = previous.queuedLabels,
+            diagnostic = diagnostic
         )
     }
 
