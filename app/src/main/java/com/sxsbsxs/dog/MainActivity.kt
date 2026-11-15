@@ -1464,6 +1464,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                 val info = preview!!
                 val videoOptions = info.formats.filter { it.hasVideo }
                 val audioOptions = info.formats.filter { it.hasAudio && !it.hasVideo }
+                val selectedVideoOption = videoOptions.firstOrNull { it.formatId == selectedVideoFormatId }
                 val qualityGroups = videoOptions.filter { it.height > 0 }
                     .groupBy { it.height }
                     .toSortedMap(compareByDescending { it })
