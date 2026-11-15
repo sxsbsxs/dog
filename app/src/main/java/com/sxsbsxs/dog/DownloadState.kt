@@ -20,6 +20,8 @@ object DownloadState {
     private val mutableState = MutableStateFlow(DownloadUiState())
     val state = mutableState.asStateFlow()
 
+    fun isRunning(): Boolean = mutableState.value.running
+
     fun started() {
         started(0)
     }
