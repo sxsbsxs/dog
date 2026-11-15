@@ -15,6 +15,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -419,6 +420,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     var authorizedSites by remember { mutableStateOf(SecureCookieStore.listAuthorizedSites(context)) }
     var historyJson by remember { mutableStateOf(DownloadHistoryStore.read(context)) }
     var playingHistoryItem by remember { mutableStateOf<DownloadHistoryItem?>(null) }
+    var mediaFilter by rememberSaveable { mutableStateOf("all") }
     var downloadTreeUri by rememberSaveable {
         mutableStateOf(preferences.getString("download_tree_uri", "").orEmpty())
     }
@@ -442,6 +444,39 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                 Toast.makeText(context, "下载目录已更新", Toast.LENGTH_SHORT).show()
             }.onFailure {
                 Toast.makeText(context, "无法保存文件夹权限，请重新选择", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    val localMediaPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { pickedUri ->
+        if (pickedUri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    pickedUri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+                val displayName = context.contentResolver.query(
+                    pickedUri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null
+                )?.use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getString(0) else null
+                }.orEmpty().ifBlank { "本地媒体" }
+                val mime = context.contentResolver.getType(pickedUri).orEmpty()
+                val audio = mime.startsWith("audio/") ||
+                    displayName.substringAfterLast('.', "").lowercase(Locale.ROOT) in
+                    setOf("mp3", "m4a", "aac", "opus", "flac", "wav", "ogg")
+                playingHistoryItem = DownloadHistoryItem(
+                    fileName = displayName,
+                    source = "本地文件",
+                    time = "",
+                    statusLabel = "本地媒体",
+                    location = pickedUri.toString(),
+                    message = "",
+                    formatLabel = if (audio) "音频" else "视频"
+                )
+                selectedTab = 6
+            }.onFailure {
+                Toast.makeText(context, "无法打开所选媒体文件", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -772,6 +807,12 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                             icon = { Icon(Icons.Default.Folder, contentDescription = null) }
                         )
                         NavigationDrawerItem(
+                            label = { Text("媒体库") },
+                            selected = selectedTab == 7,
+                            onClick = { navigateFromDrawer(7) },
+                            icon = { Icon(Icons.Default.VideoLibrary, contentDescription = null) }
+                        )
+                        NavigationDrawerItem(
                             label = { Text("任务列表") },
                             selected = selectedTab == 3,
                             onClick = { navigateFromDrawer(3) },
@@ -816,6 +857,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                             3 -> "任务列表"
                             5 -> "下载队列"
                             6 -> "播放器"
+                            7 -> "媒体库"
                             else -> when (settingsSection) {
                                 "appearance" -> "外观"
                                 "format" -> "下载格式"
@@ -878,6 +920,13 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                             selectedTab = 0
                                         }) {
                                             Text("新建下载")
+                                        }
+                                    }
+                                    if (selectedTab == 7) {
+                                        IconButton(onClick = {
+                                            localMediaPicker.launch(arrayOf("video/*", "audio/*"))
+                                        }) {
+                                            Icon(Icons.Default.FolderOpen, contentDescription = "打开本地媒体")
                                         }
                                     }
                                 }
@@ -1693,6 +1742,108 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                             item = item,
                             onBack = { selectedTab = 1 }
                         )
+                    }
+                }
+                7 -> {
+                    val allMediaItems = remember(historyJson) {
+                        parseDownloadHistory(historyJson).filter {
+                            it.location.isNotBlank() && it.statusLabel.contains("完成")
+                        }
+                    }
+                    val visibleMediaItems = remember(allMediaItems, mediaFilter) {
+                        allMediaItems.filter { item ->
+                            when (mediaFilter) {
+                                "video" -> !isAudioHistoryItem(item)
+                                "audio" -> isAudioHistoryItem(item)
+                                else -> true
+                            }
+                        }
+                    }
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(padding)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "${visibleMediaItems.size} 个媒体文件",
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            FilterChip(
+                                selected = mediaFilter == "all",
+                                onClick = { mediaFilter = "all" },
+                                label = { Text("全部") }
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            FilterChip(
+                                selected = mediaFilter == "video",
+                                onClick = { mediaFilter = "video" },
+                                label = { Text("视频") }
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            FilterChip(
+                                selected = mediaFilter == "audio",
+                                onClick = { mediaFilter = "audio" },
+                                label = { Text("音频") }
+                            )
+                        }
+                        if (visibleMediaItems.isEmpty()) {
+                            EmptyState(
+                                icon = Icons.Default.VideoLibrary,
+                                title = "媒体库还是空的",
+                                description = "已下载完成的视频和音频会自动出现在这里，也可以从设备中打开其他媒体文件。",
+                                action = "打开本地媒体",
+                                onAction = {
+                                    localMediaPicker.launch(arrayOf("video/*", "audio/*"))
+                                }
+                            )
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                    horizontal = 20.dp, bottom = 24.dp
+                                ),
+                                verticalArrangement = Arrangement.spacedBy(0.dp)
+                            ) {
+                                items(visibleMediaItems) { item ->
+                                    HistoryRow(
+                                        item = item,
+                                        onPlay = {
+                                            playingHistoryItem = item
+                                            selectedTab = 6
+                                        },
+                                        onOpen = {
+                                            runCatching {
+                                                val uri = historyLocationUri(item.location)
+                                                val mime = context.contentResolver.getType(uri) ?: "*/*"
+                                                context.startActivity(
+                                                    Intent(Intent.ACTION_VIEW)
+                                                        .setDataAndType(uri, mime)
+                                                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                )
+                                            }.onFailure {
+                                                Toast.makeText(context, "无法打开该文件", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        onShare = {
+                                            runCatching {
+                                                val uri = historyLocationUri(item.location)
+                                                val intent = Intent(Intent.ACTION_SEND)
+                                                    .setType(context.contentResolver.getType(uri) ?: "*/*")
+                                                    .putExtra(Intent.EXTRA_STREAM, uri)
+                                                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                context.startActivity(Intent.createChooser(intent, "分享媒体文件"))
+                                            }.onFailure {
+                                                Toast.makeText(context, "无法分享该文件", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
                 2 -> {
