@@ -119,6 +119,7 @@ import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.util.Date
 import java.util.Locale
@@ -318,6 +319,12 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
     var embedThumbnail by rememberSaveable { mutableStateOf(preferences.getBoolean("embed_thumbnail", true)) }
     var skipExisting by rememberSaveable { mutableStateOf(preferences.getBoolean("skip_existing", false)) }
     var concurrentFragments by rememberSaveable { mutableStateOf(preferences.getInt("concurrent_fragments", 4)) }
+    var autoUpdateEngine by rememberSaveable {
+        mutableStateOf(preferences.getBoolean("auto_update_engine", true))
+    }
+    var autoUpdateWifiOnly by rememberSaveable {
+        mutableStateOf(preferences.getBoolean("auto_update_wifi_only", true))
+    }
 
     var previewLoading by remember { mutableStateOf(false) }
     var preview by remember { mutableStateOf<VideoInfoService.Preview?>(null) }
@@ -351,7 +358,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
     LaunchedEffect(
         themeMode, audioOnly, maxHeight, downloadSubtitles, downloadPlaylist,
         videoContainer, audioFormat, subtitleLanguages, embedThumbnail,
-        skipExisting, concurrentFragments
+        skipExisting, concurrentFragments, autoUpdateEngine, autoUpdateWifiOnly
     ) {
         preferences.edit()
             .putString("theme_mode", themeMode)
@@ -365,7 +372,16 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
             .putBoolean("embed_thumbnail", embedThumbnail)
             .putBoolean("skip_existing", skipExisting)
             .putInt("concurrent_fragments", concurrentFragments)
+            .putBoolean("auto_update_engine", autoUpdateEngine)
+            .putBoolean("auto_update_wifi_only", autoUpdateWifiOnly)
             .apply()
+    }
+
+    LaunchedEffect(autoUpdateEngine, autoUpdateWifiOnly) {
+        if (autoUpdateEngine) {
+            delay(5_000)
+            EngineUpdateManager.updateIfDue(context, autoUpdateWifiOnly)
+        }
     }
 
     val pasteUrl: () -> Unit = {
@@ -1271,6 +1287,18 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                         }
 
                         SettingsGroup("解析引擎", "网站改版导致解析失败时，可以尝试更新 yt-dlp") {
+                            SettingsToggleRow(
+                                "自动更新解析引擎",
+                                "每周检查一次，只在下载和解析空闲时执行",
+                                autoUpdateEngine
+                            ) { autoUpdateEngine = it }
+                            if (autoUpdateEngine) {
+                                SettingsToggleRow(
+                                    "仅使用 Wi-Fi 更新",
+                                    "避免自动更新消耗移动数据",
+                                    autoUpdateWifiOnly
+                                ) { autoUpdateWifiOnly = it }
+                            }
                             OutlinedButton(
                                 onClick = {
                                     engineUpdating = true
