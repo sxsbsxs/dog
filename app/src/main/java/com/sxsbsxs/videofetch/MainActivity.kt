@@ -89,6 +89,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -124,6 +125,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -136,6 +138,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -144,7 +147,14 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.documentfile.provider.DocumentFile
+import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerControlView
+import androidx.media3.ui.PlayerView
 import java.text.SimpleDateFormat
+import java.io.File
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -403,6 +413,33 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     var hasCookieJar by remember { mutableStateOf(SecureCookieStore.hasCookieJar(context)) }
     var authorizedSites by remember { mutableStateOf(SecureCookieStore.listAuthorizedSites(context)) }
     var historyJson by remember { mutableStateOf(DownloadHistoryStore.read(context)) }
+    var playingHistoryItem by remember { mutableStateOf<DownloadHistoryItem?>(null) }
+    var downloadTreeUri by rememberSaveable {
+        mutableStateOf(preferences.getString("download_tree_uri", "").orEmpty())
+    }
+    val downloadFolderLabel = remember(downloadTreeUri) {
+        if (downloadTreeUri.isBlank()) "Download/video-dl"
+        else runCatching {
+            DocumentFile.fromTreeUri(context, Uri.parse(downloadTreeUri))?.name
+        }.getOrNull()?.takeIf { it.isNotBlank() } ?: "已选择的文件夹"
+    }
+    val folderPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { pickedUri ->
+        if (pickedUri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    pickedUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+                preferences.edit().putString("download_tree_uri", pickedUri.toString()).apply()
+                downloadTreeUri = pickedUri.toString()
+                Toast.makeText(context, "下载目录已更新", Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                Toast.makeText(context, "无法保存文件夹权限，请重新选择", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
     var historySearchQuery by rememberSaveable { mutableStateOf("") }
     var historySearchVisible by rememberSaveable { mutableStateOf(false) }
     var historyFilter by rememberSaveable { mutableStateOf("all") }
@@ -426,13 +463,22 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     var selectedVideoFormatId by rememberSaveable { mutableStateOf("") }
     var selectedAudioFormatId by rememberSaveable { mutableStateOf("") }
     var downloadSubtitles by rememberSaveable { mutableStateOf(preferences.getBoolean("download_subtitles", false)) }
+    var downloadAutoSubtitles by rememberSaveable { mutableStateOf(preferences.getBoolean("download_auto_subtitles", false)) }
+    var embedSubtitles by rememberSaveable { mutableStateOf(preferences.getBoolean("embed_subtitles", true)) }
     var downloadPlaylist by rememberSaveable { mutableStateOf(preferences.getBoolean("download_playlist", false)) }
     var videoContainer by rememberSaveable { mutableStateOf(preferences.getString("video_container", "mp4") ?: "mp4") }
     var audioFormat by rememberSaveable { mutableStateOf(preferences.getString("audio_format", "mp3") ?: "mp3") }
+    var audioQuality by rememberSaveable { mutableStateOf(preferences.getString("audio_quality", "0") ?: "0") }
     var subtitleLanguages by rememberSaveable { mutableStateOf(preferences.getString("subtitle_languages", "all") ?: "all") }
     var embedThumbnail by rememberSaveable { mutableStateOf(preferences.getBoolean("embed_thumbnail", true)) }
+    var writeThumbnail by rememberSaveable { mutableStateOf(preferences.getBoolean("write_thumbnail", false)) }
+    var embedMetadata by rememberSaveable { mutableStateOf(preferences.getBoolean("embed_metadata", true)) }
     var skipExisting by rememberSaveable { mutableStateOf(preferences.getBoolean("skip_existing", false)) }
+    var filenameTemplate by rememberSaveable { mutableStateOf(preferences.getString("filename_template", "title") ?: "title") }
     var concurrentFragments by rememberSaveable { mutableStateOf(preferences.getInt("concurrent_fragments", 4)) }
+    var downloadRetries by rememberSaveable { mutableStateOf(preferences.getInt("download_retries", 10)) }
+    var useAria2 by rememberSaveable { mutableStateOf(preferences.getBoolean("use_aria2", true)) }
+    var rateLimit by rememberSaveable { mutableStateOf(preferences.getString("rate_limit", "").orEmpty()) }
     var autoUpdateEngine by rememberSaveable {
         // Migrate existing installs away from automatic native engine startup.
         // Users can opt back in from Settings after confirming the app runs reliably.
@@ -506,22 +552,33 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     }
 
     LaunchedEffect(
-        themeMode, audioOnly, maxHeight, downloadSubtitles, downloadPlaylist,
-        videoContainer, audioFormat, subtitleLanguages, embedThumbnail,
-        skipExisting, concurrentFragments, autoUpdateEngine, autoUpdateWifiOnly
+        themeMode, audioOnly, maxHeight, downloadSubtitles, downloadAutoSubtitles,
+        embedSubtitles, downloadPlaylist, videoContainer, audioFormat, audioQuality,
+        subtitleLanguages, embedThumbnail, writeThumbnail, embedMetadata,
+        skipExisting, filenameTemplate, concurrentFragments, downloadRetries,
+        useAria2, rateLimit, autoUpdateEngine, autoUpdateWifiOnly
     ) {
         preferences.edit()
             .putString("theme_mode", themeMode)
             .putBoolean("audio_only", audioOnly)
             .putInt("max_height", maxHeight)
             .putBoolean("download_subtitles", downloadSubtitles)
+            .putBoolean("download_auto_subtitles", downloadAutoSubtitles)
+            .putBoolean("embed_subtitles", embedSubtitles)
             .putBoolean("download_playlist", downloadPlaylist)
             .putString("video_container", videoContainer)
             .putString("audio_format", audioFormat)
+            .putString("audio_quality", audioQuality)
             .putString("subtitle_languages", subtitleLanguages.trim().ifBlank { "all" })
             .putBoolean("embed_thumbnail", embedThumbnail)
+            .putBoolean("write_thumbnail", writeThumbnail)
+            .putBoolean("embed_metadata", embedMetadata)
             .putBoolean("skip_existing", skipExisting)
+            .putString("filename_template", filenameTemplate)
             .putInt("concurrent_fragments", concurrentFragments)
+            .putInt("download_retries", downloadRetries)
+            .putBoolean("use_aria2", useAria2)
+            .putString("rate_limit", rateLimit.trim())
             .putBoolean("auto_update_engine", autoUpdateEngine)
             .putBoolean("auto_update_wifi_only", autoUpdateWifiOnly)
             .apply()
