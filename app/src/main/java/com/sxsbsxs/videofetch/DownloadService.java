@@ -7,6 +7,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.os.IBinder;
@@ -69,11 +70,20 @@ public class DownloadService extends Service {
         final String audioFormat;
         final String subtitleLanguages;
         final boolean downloadSubtitles;
+        final boolean downloadAutoSubtitles;
+        final boolean embedSubtitles;
         final boolean downloadPlaylist;
         final boolean embedThumbnail;
+        final boolean writeThumbnail;
+        final boolean embedMetadata;
+        final boolean useAria2;
         final boolean skipExisting;
         final int concurrentFragments;
         final int maxHeight;
+        final int retries;
+        final String audioQuality;
+        final String rateLimit;
+        final String filenameTemplate;
 
         DownloadTask(
                 String url,
@@ -90,11 +100,20 @@ public class DownloadService extends Service {
             this.audioFormat = preferences.getString("audio_format", "mp3");
             this.subtitleLanguages = preferences.getString("subtitle_languages", "all");
             this.downloadSubtitles = preferences.getBoolean("download_subtitles", false);
+            this.downloadAutoSubtitles = preferences.getBoolean("download_auto_subtitles", true);
+            this.embedSubtitles = preferences.getBoolean("embed_subtitles", true);
             this.downloadPlaylist = preferences.getBoolean("download_playlist", false);
             this.embedThumbnail = preferences.getBoolean("embed_thumbnail", true);
+            this.writeThumbnail = preferences.getBoolean("write_thumbnail", false);
+            this.embedMetadata = preferences.getBoolean("embed_metadata", true);
+            this.useAria2 = preferences.getBoolean("use_aria2", true);
             this.skipExisting = preferences.getBoolean("skip_existing", false);
             this.concurrentFragments = preferences.getInt("concurrent_fragments", 4);
             this.maxHeight = preferences.getInt("max_height", 0);
+            this.retries = preferences.getInt("download_retries", 10);
+            this.audioQuality = preferences.getString("audio_quality", "0");
+            this.rateLimit = preferences.getString("rate_limit", "");
+            this.filenameTemplate = preferences.getString("filename_template", "title");
         }
     }
 
@@ -299,14 +318,19 @@ public class DownloadService extends Service {
 
             int publishedCount = 0;
             int publishFailures = 0;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            String selectedTree = getSharedPreferences(
+                    "videofetch_settings", Context.MODE_PRIVATE)
+                    .getString("download_tree_uri", "");
+            boolean customFolder = selectedTree != null && !selectedTree.trim().isEmpty();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q || customFolder) {
                 for (File file : completedFiles) {
                     try {
-                        String publishedUri = MediaStorePublisher.publish(this, file);
+                        String publishedUri = customFolder
+                                ? MediaStorePublisher.publishToTree(this, file, Uri.parse(selectedTree))
+                                : MediaStorePublisher.publish(this, file);
                         publishedCount++;
                         DownloadHistoryStore.record(
                                 this, url, file.getName(), publishedUri, "completed", "下载完成", task.formatLabel);
-                        // Avoid retaining a second full-size copy after public publishing succeeds.
                         if (!file.delete()) {
                             Log.w(TAG, "Published file but could not remove staging copy: " + file);
                         }
@@ -314,7 +338,7 @@ public class DownloadService extends Service {
                         publishFailures++;
                         DownloadHistoryStore.record(
                                 this, url, file.getName(), file.getAbsolutePath(),
-                                "saved_private", "公共目录发布失败，文件仍保留在应用目录", task.formatLabel);
+                                "saved_private", "目标目录保存失败，文件仍保留在应用目录", task.formatLabel);
                         Log.e(TAG, "Could not publish " + file.getName(), publishFailure);
                     }
                 }
@@ -329,20 +353,25 @@ public class DownloadService extends Service {
 
             String location;
             String finishedMessage;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && publishedCount > 0) {
-                location = "公共下载目录：Download/VideoFetch（" + publishedCount + " 个文件）";
+            if (publishedCount > 0 && customFolder) {
+                location = "已保存到你选择的文件夹（" + publishedCount + " 个文件）";
+                finishedMessage = publishFailures == 0
+                        ? "下载完成，已保存到你选择的文件夹"
+                        : "下载完成，" + publishedCount + " 个文件已保存，" + publishFailures + " 个保留在应用目录";
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && publishedCount > 0) {
+                location = "公共下载目录：Download/video-dl（" + publishedCount + " 个文件）";
                 if (publishFailures > 0) {
                     location += "；未发布文件暂存于：" + outputDirectory.getAbsolutePath();
                 }
                 finishedMessage = publishFailures == 0
-                        ? "下载完成，已保存到 Download/VideoFetch"
+                        ? "下载完成，已保存到 Download/video-dl"
                         : "下载完成，" + publishedCount + " 个文件已保存，" + publishFailures + " 个保留在应用目录";
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 location = outputDirectory.getAbsolutePath();
-                finishedMessage = "下载完成，但无法发布到公共目录；文件暂存在应用目录";
+                finishedMessage = "下载完成，但无法发布到目标目录；文件暂存在应用目录";
             } else {
                 location = outputDirectory.getAbsolutePath();
-                finishedMessage = "下载完成，已保存到系统 Download/VideoFetch 目录";
+                finishedMessage = "下载完成，已保存到系统下载目录";
             }
 
             DownloadState.INSTANCE.completed(location, finishedMessage);
@@ -492,7 +521,15 @@ public class DownloadService extends Service {
         YoutubeDLRequest request = new YoutubeDLRequest(url);
         request.addOption("--plugin-dirs",
                 YtDlpEngine.getPluginDirectory(getApplicationContext()).getAbsolutePath());
-        request.addOption("-o", new File(directory, "%(title).200B.%(ext)s").getAbsolutePath());
+        String outputTemplate;
+        if ("title_id".equals(task.filenameTemplate)) {
+            outputTemplate = "%(title).180B [%(id)s].%(ext)s";
+        } else if ("id_title".equals(task.filenameTemplate)) {
+            outputTemplate = "%(id)s %(title).180B.%(ext)s";
+        } else {
+            outputTemplate = "%(title).200B.%(ext)s";
+        }
+        request.addOption("-o", new File(directory, outputTemplate).getAbsolutePath());
         request.addOption("--newline");
         request.addOption("--progress");
         // Emit a stable yt-dlp progress line. youtubedl-android parses
@@ -502,10 +539,17 @@ public class DownloadService extends Service {
         request.addOption("--progress-delta", "1");
         request.addOption("--no-colors");
         request.addOption("--no-mtime");
-        request.addOption("--retries", "10");
-        request.addOption("--fragment-retries", "10");
+        int retryCount = Math.max(1, Math.min(30, task.retries));
+        request.addOption("--retries", Integer.toString(retryCount));
+        request.addOption("--fragment-retries", Integer.toString(retryCount));
         request.addOption("--file-access-retries", "3");
-        request.addOption("--embed-metadata");
+        if (task.embedMetadata) request.addOption("--embed-metadata");
+        if (task.embedThumbnail) request.addOption("--embed-thumbnail");
+        if (task.writeThumbnail) request.addOption("--write-thumbnail");
+        String rateLimit = task.rateLimit == null ? "" : task.rateLimit.trim();
+        if (rateLimit.matches("\\d+(?:\\.\\d+)?[KMGkmg]?")) {
+            request.addOption("--limit-rate", rateLimit);
+        }
 
         boolean downloadSubtitles = task.downloadSubtitles;
         boolean downloadPlaylist = task.downloadPlaylist;
@@ -533,10 +577,9 @@ public class DownloadService extends Service {
                 audioFormat = "mp3";
             }
             request.addOption("--audio-format", audioFormat);
-            request.addOption("--audio-quality", "0");
-            if (task.embedThumbnail) {
-                request.addOption("--embed-thumbnail");
-            }
+            String audioQuality = task.audioQuality == null ? "0" : task.audioQuality;
+            if (!audioQuality.matches("(?:0|[1-9]|10)")) audioQuality = "0";
+            request.addOption("--audio-quality", audioQuality);
         } else {
             String format = task.formatSelector.trim();
             if (!format.isEmpty()) {
@@ -558,19 +601,20 @@ public class DownloadService extends Service {
             request.addOption("--merge-output-format", videoContainer);
         }
 
-        if (downloadSubtitles) {
-            request.addOption("--write-subs");
-            request.addOption("--write-auto-subs");
+        boolean downloadAutoSubtitles = task.downloadAutoSubtitles;
+        if (downloadSubtitles) request.addOption("--write-subs");
+        if (downloadAutoSubtitles) request.addOption("--write-auto-subs");
+        if (downloadSubtitles || downloadAutoSubtitles) {
             String subtitleLanguages = task.subtitleLanguages;
             if (subtitleLanguages == null || subtitleLanguages.trim().isEmpty()) {
                 subtitleLanguages = "all";
             }
             request.addOption("--sub-langs", subtitleLanguages.trim());
-            if (!task.audioOnly) request.addOption("--embed-subs");
+            if (!task.audioOnly && task.embedSubtitles) request.addOption("--embed-subs");
         }
 
-        // aria2c is the upstream native Android downloader, initialized by YtDlpEngine.
-        request.addOption("--downloader", "libaria2c.so");
+        // aria2c is optional; yt-dlp's native downloader remains available as a fallback.
+        if (task.useAria2) request.addOption("--downloader", "libaria2.so");
         return request;
     }
 
