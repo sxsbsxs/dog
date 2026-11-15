@@ -168,7 +168,8 @@ public final class VideoInfoService {
                 boolean niconico = isNiconicoUrl(url);
                 // Match yt-dlp's NiconicoBaseIE.is_logged_in exactly:
                 // the extractor checks user_session on www.nicovideo.jp.
-                boolean hasNiconicoSession = hasCookie(cookieFile, "user_session");
+                boolean hasNiconicoSession = hasCookieForHost(
+                        cookieFile, "user_session", "www.nicovideo.jp");
                 String diagnostic = buildQualityNotice(
                         bilibili, hasSessData, niconico, hasNiconicoSession,
                         qualities, videoFormatCount, extractionDiagnostics);
@@ -401,6 +402,33 @@ public final class VideoInfoService {
             }
         } catch (Exception ignored) {
             // Do not expose or log cookie contents.
+        }
+        return false;
+    }
+
+    private static boolean hasCookieForHost(File cookieFile, String cookieName, String host) {
+        if (cookieFile == null || !cookieFile.isFile() || host == null || host.isEmpty()) return false;
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(new FileInputStream(cookieFile), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.isEmpty() || (line.startsWith("#") && !line.startsWith("#HttpOnly_"))) continue;
+                String[] fields = line.split("\\t", -1);
+                if (fields.length < 7 || !cookieName.equals(fields[5]) || fields[6].isEmpty()) continue;
+
+                String domainField = fields[0];
+                String domain = domainField.startsWith("#HttpOnly_")
+                        ? domainField.substring("#HttpOnly_".length()) : domainField;
+                boolean includeSubdomains = domain.startsWith(".");
+                String bareDomain = includeSubdomains ? domain.substring(1) : domain;
+                if (host.equalsIgnoreCase(bareDomain) ||
+                        (includeSubdomains && host.toLowerCase(Locale.ROOT)
+                                .endsWith("." + bareDomain.toLowerCase(Locale.ROOT)))) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {
+            // Never log or expose cookie contents.
         }
         return false;
     }
