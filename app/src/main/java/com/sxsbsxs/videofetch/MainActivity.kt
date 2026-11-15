@@ -282,6 +282,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startDownload(url: String, formatSelector: String, audioOnly: Boolean, formatLabel: String) {
+        val normalizedUrl = VideoUrlNormalizer.normalize(url)
+        if (normalizedUrl == null) {
+            Toast.makeText(this, "链接格式不正确，请粘贴完整视频链接或 11 位 YouTube 视频 ID", Toast.LENGTH_LONG).show()
+            return
+        }
         val selectedTree = getSharedPreferences(
             "videofetch_settings", Context.MODE_PRIVATE
         ).getString("download_tree_uri", "")
@@ -291,14 +296,14 @@ class MainActivity : ComponentActivity() {
                 this, Manifest.permission.WRITE_EXTERNAL_STORAGE
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            pendingDownloadUrl = url
+            pendingDownloadUrl = normalizedUrl
             pendingFormatSelector = formatSelector
             pendingAudioOnly = audioOnly
             pendingFormatLabel = formatLabel
             storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             return
         }
-        DownloadService.start(this, url, formatSelector, audioOnly, formatLabel)
+        DownloadService.start(this, normalizedUrl, formatSelector, audioOnly, formatLabel)
     }
 
     private fun sharedText(intent: Intent?): String? = when (intent?.action) {
@@ -307,14 +312,8 @@ class MainActivity : ComponentActivity() {
         else -> null
     }
 
-    private fun extractHttpUrl(text: String?): String? {
-        if (text.isNullOrBlank()) return null
-        val candidate = Regex("""https?://[^\s<>"']+""", RegexOption.IGNORE_CASE)
-            .find(text)?.value
-            ?.trimEnd('.', ',', ';', '!', '。', '，', '；', ')', '）', ']', '】')
-            ?: return null
-        return candidate.takeIf { isHttpUrl(it) }
-    }
+    private fun extractHttpUrl(text: String?): String? =
+        VideoUrlNormalizer.normalize(text)
 }
 
 private data class DownloadHistoryItem(
@@ -359,8 +358,7 @@ private fun parseDownloadHistory(json: String): List<DownloadHistoryItem> {
 }
 
 private fun isHttpUrl(value: String): Boolean =
-    value.startsWith("https://", ignoreCase = true) ||
-        value.startsWith("http://", ignoreCase = true)
+    VideoUrlNormalizer.isValidHttpUrl(value)
 
 private val VideoFetchLightColors = lightColorScheme(
     primary = Color(0xFF006B7B), onPrimary = Color(0xFFFFFFFF),
@@ -709,9 +707,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
             ?.getItemAt(0)
             ?.coerceToText(context)
             ?.toString()
-        val pastedUrl = Regex("""https?://[^\s<>"']+""", RegexOption.IGNORE_CASE)
-            .find(clipText.orEmpty())?.value
-            ?.trimEnd('.', ',', ';', '!', '。', '，', '；', ')', '）', ']', '】')
+        val pastedUrl = VideoUrlNormalizer.normalize(clipText)
         if (!pastedUrl.isNullOrBlank() && isHttpUrl(pastedUrl)) {
             url = pastedUrl
             maxHeight = 0
@@ -748,12 +744,13 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     }
 
     val startPreview: () -> Unit = {
-        val value = url.trim()
-        if (!isHttpUrl(value)) {
-            Toast.makeText(context, "先粘贴有效的视频链接", Toast.LENGTH_SHORT).show()
+        val value = VideoUrlNormalizer.normalize(url).orEmpty()
+        if (value.isBlank()) {
+            Toast.makeText(context, "链接格式不正确，请粘贴完整视频链接或 11 位 YouTube 视频 ID", Toast.LENGTH_LONG).show()
         } else if (engineUpdating || EngineUpdateManager.isUpdating()) {
             Toast.makeText(context, "当前任务进行中，暂不能解析", Toast.LENGTH_SHORT).show()
         } else {
+            url = value
             previewLoading = true
             preview = null
             previewError = ""
@@ -784,7 +781,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     }
 
     val startDownload: () -> Unit = {
-        val value = url.trim()
+        val value = VideoUrlNormalizer.normalize(url).orEmpty()
         val selectedVideo = preview?.formats?.firstOrNull { it.formatId == selectedVideoFormatId && it.hasVideo }
         val selectedAudio = preview?.formats?.firstOrNull { it.formatId == selectedAudioFormatId && it.hasAudio }
         val formatSelector = when {
@@ -828,8 +825,10 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     }
 
     val openLogin: () -> Unit = {
-        val target = url.trim().ifBlank { preferences.getString("last_input_url", "").orEmpty() }
-        if (!isHttpUrl(target)) {
+        val target = VideoUrlNormalizer.normalize(
+            url.ifBlank { preferences.getString("last_input_url", "").orEmpty() }
+        ).orEmpty()
+        if (target.isBlank()) {
             Toast.makeText(context, "先粘贴一个目标网站的视频链接", Toast.LENGTH_SHORT).show()
         } else {
             loginLauncher.launch(
