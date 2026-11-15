@@ -1519,6 +1519,21 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                                     Text(meta, style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
+                                if (info.niconicoApiMode.isNotBlank()) {
+                                    AssistChip(
+                                        onClick = {},
+                                        label = {
+                                            Text(
+                                                if (info.niconicoApiMode == "v3_guest")
+                                                    "Niconico 游客接口"
+                                                else "Niconico 标准接口"
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Info, null, modifier = Modifier.size(15.dp))
+                                        }
+                                    )
+                                }
                                 HorizontalDivider(
                                     modifier = Modifier.padding(top = 5.dp),
                                     color = MaterialTheme.colorScheme.outlineVariant
@@ -1724,7 +1739,8 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                                     ) {
                                         Text(info.qualityNotice, style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onTertiaryContainer)
-                                        if (info.qualityNotice.contains("Niconico 游客身份")) {
+                                        if (info.niconicoApiMode == "v3_guest" ||
+                                            info.qualityNotice.contains("没有检测到 Niconico 登录 Cookie")) {
                                             OutlinedButton(
                                                 onClick = openLogin,
                                                 modifier = Modifier.fillMaxWidth(),
