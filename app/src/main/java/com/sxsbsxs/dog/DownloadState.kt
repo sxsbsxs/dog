@@ -13,7 +13,8 @@ data class DownloadUiState(
     val formatLabel: String = "",
     val lastUrl: String = "",
     val formatSelector: String = "",
-    val audioOnly: Boolean = false
+    val audioOnly: Boolean = false,
+    val queuedLabels: List<String> = emptyList()
 )
 
 object DownloadState {
@@ -41,6 +42,17 @@ object DownloadState {
         formatSelector: String,
         audioOnly: Boolean
     ) {
+        started(queuedCount, formatLabel, url, formatSelector, audioOnly, emptyList())
+    }
+
+    fun started(
+        queuedCount: Int,
+        formatLabel: String,
+        url: String,
+        formatSelector: String,
+        audioOnly: Boolean,
+        queuedLabels: List<String>
+    ) {
         mutableState.value = DownloadUiState(
             running = true,
             message = if (queuedCount > 0) "正在准备下载 · 后面还有 $queuedCount 个任务" else "正在准备下载…",
@@ -48,15 +60,21 @@ object DownloadState {
             formatLabel = formatLabel,
             lastUrl = url,
             formatSelector = formatSelector,
-            audioOnly = audioOnly
+            audioOnly = audioOnly,
+            queuedLabels = queuedLabels
         )
     }
 
     fun queued(count: Int) {
+        queued(count, emptyList())
+    }
+
+    fun queued(count: Int, labels: List<String>) {
         mutableState.value = mutableState.value.copy(
             running = true,
             message = "已加入下载队列，前面正在处理当前任务",
-            queuedCount = count
+            queuedCount = count,
+            queuedLabels = labels
         )
     }
 
@@ -64,7 +82,8 @@ object DownloadState {
         mutableState.value = mutableState.value.copy(
             running = true,
             message = "等待队列已清空，当前下载继续进行",
-            queuedCount = 0
+            queuedCount = 0,
+            queuedLabels = emptyList()
         )
     }
 
@@ -99,7 +118,8 @@ object DownloadState {
             formatLabel = previous.formatLabel,
             lastUrl = previous.lastUrl,
             formatSelector = previous.formatSelector,
-            audioOnly = previous.audioOnly
+            audioOnly = previous.audioOnly,
+            queuedLabels = previous.queuedLabels
         )
     }
 
@@ -110,7 +130,8 @@ object DownloadState {
             formatLabel = previous.formatLabel,
             lastUrl = previous.lastUrl,
             formatSelector = previous.formatSelector,
-            audioOnly = previous.audioOnly
+            audioOnly = previous.audioOnly,
+            queuedLabels = previous.queuedLabels
         )
     }
 
@@ -121,7 +142,8 @@ object DownloadState {
             formatLabel = previous.formatLabel,
             lastUrl = previous.lastUrl,
             formatSelector = previous.formatSelector,
-            audioOnly = previous.audioOnly
+            audioOnly = previous.audioOnly,
+            queuedLabels = previous.queuedLabels
         )
     }
 }
