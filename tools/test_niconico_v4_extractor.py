@@ -174,7 +174,7 @@ standard_track = standard_request["query"]["actionTrackId"]
 assert standard_track.startswith("AAAAAAAAAA_")
 assert standard_request["query"]["skips"] == "harmful"
 assert standard_request["query"]["noSideEffect"] == "false"
-assert_dms_request(standard, standard_track)
+assert_dms_request(standard, "track-from-watch-api")
 
 # Standard v3 failure falls back to v3_guest, reusing the actionTrackId.
 guest = plugin_module.DogNiconicoIE(
@@ -187,7 +187,7 @@ guest_url, guest_request = guest.api_requests[1]
 assert "/api/watch/v3/sm37593092" in guest_standard_url
 assert "/api/watch/v3_guest/sm37593092" in guest_url
 assert guest_standard_request["query"]["actionTrackId"] == guest_request["query"]["actionTrackId"]
-assert_dms_request(guest, guest_request["query"]["actionTrackId"])
+assert_dms_request(guest, "track-from-watch-api")
 
 # When both APIs fail, the V4 server-response route remains available.
 wrapper = {"data": {"response": {"$watchV4": {"data": watch_data}}}}
