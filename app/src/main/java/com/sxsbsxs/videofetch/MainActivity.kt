@@ -554,15 +554,15 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     var useAria2 by rememberSaveable { mutableStateOf(preferences.getBoolean("use_aria2", true)) }
     var rateLimit by rememberSaveable { mutableStateOf(preferences.getString("rate_limit", "").orEmpty()) }
     var autoUpdateEngine by rememberSaveable {
-        // Migrate existing installs away from automatic native engine startup.
-        // Users can opt back in from Settings after confirming the app runs reliably.
-        if (!preferences.getBoolean("engine_auto_update_default_migrated_v1", false)) {
+        // YouTube extraction changes frequently; keep the local yt-dlp engine
+        // current by default. Users can still disable this in Settings.
+        if (!preferences.getBoolean("engine_nightly_default_migrated_v2", false)) {
             preferences.edit()
-                .putBoolean("auto_update_engine", false)
-                .putBoolean("engine_auto_update_default_migrated_v1", true)
+                .putBoolean("auto_update_engine", true)
+                .putBoolean("engine_nightly_default_migrated_v2", true)
                 .apply()
         }
-        mutableStateOf(preferences.getBoolean("auto_update_engine", false))
+        mutableStateOf(preferences.getBoolean("auto_update_engine", true))
     }
     var autoUpdateWifiOnly by rememberSaveable {
         mutableStateOf(preferences.getBoolean("auto_update_wifi_only", true))
@@ -2449,10 +2449,10 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                             shape = RoundedCornerShape(14.dp)
                                         )
                                     }
-                                    SettingsGroup("解析引擎", "网站改版导致解析失败时，可以尝试更新 yt-dlp") {
+                                    SettingsGroup("解析引擎", "自动跟进 YouTube 提取器的最新兼容修复") {
                                         SettingsToggleRow(
                                             "自动更新解析引擎",
-                                            "每周检查一次，只在下载和解析空闲时执行",
+                                            "每周检查 yt-dlp nightly，只在下载和解析空闲时执行",
                                             autoUpdateEngine
                                         ) { autoUpdateEngine = it }
                                         if (autoUpdateEngine) {
@@ -2479,9 +2479,9 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                                                 Spacer(Modifier.width(8.dp))
                                                 Text("正在更新…")
-                                            } else Text("检查并更新 yt-dlp")
+                                            } else Text("检查并更新 yt-dlp nightly")
                                         }
-                                        Text("这只更新本机的网站解析脚本，不会更新 video-dl 应用。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("nightly 更新比 stable 更及时；仅更新本机解析脚本，不会更新 VideoFetch 应用。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                                 else -> {
