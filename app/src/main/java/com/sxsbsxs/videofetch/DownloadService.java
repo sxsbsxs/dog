@@ -84,6 +84,7 @@ public class DownloadService extends Service {
         final String audioQuality;
         final String rateLimit;
         final String filenameTemplate;
+        final String destinationTreeUri;
 
         DownloadTask(
                 String url,
@@ -100,7 +101,7 @@ public class DownloadService extends Service {
             this.audioFormat = preferences.getString("audio_format", "mp3");
             this.subtitleLanguages = preferences.getString("subtitle_languages", "all");
             this.downloadSubtitles = preferences.getBoolean("download_subtitles", false);
-            this.downloadAutoSubtitles = preferences.getBoolean("download_auto_subtitles", true);
+            this.downloadAutoSubtitles = preferences.getBoolean("download_auto_subtitles", false);
             this.embedSubtitles = preferences.getBoolean("embed_subtitles", true);
             this.downloadPlaylist = preferences.getBoolean("download_playlist", false);
             this.embedThumbnail = preferences.getBoolean("embed_thumbnail", true);
@@ -114,6 +115,7 @@ public class DownloadService extends Service {
             this.audioQuality = preferences.getString("audio_quality", "0");
             this.rateLimit = preferences.getString("rate_limit", "");
             this.filenameTemplate = preferences.getString("filename_template", "title");
+            this.destinationTreeUri = preferences.getString("download_tree_uri", "");
         }
     }
 
@@ -318,9 +320,7 @@ public class DownloadService extends Service {
 
             int publishedCount = 0;
             int publishFailures = 0;
-            String selectedTree = getSharedPreferences(
-                    "videofetch_settings", Context.MODE_PRIVATE)
-                    .getString("download_tree_uri", "");
+            String selectedTree = task.destinationTreeUri;
             boolean customFolder = selectedTree != null && !selectedTree.trim().isEmpty();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q || customFolder) {
                 for (File file : completedFiles) {
@@ -626,7 +626,10 @@ public class DownloadService extends Service {
 
     private File getDownloadDirectory() throws IOException {
         File base;
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+        String selectedTree = getSharedPreferences(
+                "videofetch_settings", Context.MODE_PRIVATE).getString("download_tree_uri", "");
+        boolean customFolder = selectedTree != null && !selectedTree.trim().isEmpty();
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q && !customFolder) {
             if (checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
                     != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 throw new SecurityException("需要存储权限才能写入系统下载目录");
@@ -637,7 +640,7 @@ public class DownloadService extends Service {
             if (base == null) base = getFilesDir();
         }
 
-        File directory = new File(base, "VideoFetch");
+        File directory = new File(base, customFolder ? "video-dl-staging" : "VideoFetch");
         if (!directory.exists() && !directory.mkdirs()) {
             throw new IOException("无法创建下载目录：" + directory);
         }
