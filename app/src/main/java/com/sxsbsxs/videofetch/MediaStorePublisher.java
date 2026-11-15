@@ -24,7 +24,7 @@ import java.util.zip.CRC32;
  */
 public final class MediaStorePublisher {
     private static final String RELATIVE_DIRECTORY =
-            Environment.DIRECTORY_DOWNLOADS + "/VideoFetch/";
+            Environment.DIRECTORY_DOWNLOADS + "/video-dl/";
 
     private MediaStorePublisher() {}
 
