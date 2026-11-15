@@ -84,8 +84,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -118,6 +116,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
@@ -336,7 +336,6 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
     var showFormatSheet by rememberSaveable { mutableStateOf(false) }
     var showAdvancedDownloadSettings by rememberSaveable { mutableStateOf(false) }
     var settingsReturnTab by rememberSaveable { mutableStateOf(0) }
-    val formatSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val download by DownloadState.state.collectAsState()
 
     val loginLauncher = rememberLauncherForActivityResult(
@@ -1457,12 +1456,15 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
             }
         }
         if (showFormatSheet && preview != null) {
-            ModalBottomSheet(
+            Dialog(
                 onDismissRequest = { showFormatSheet = false },
-                sheetState = formatSheetState,
-                containerColor = MaterialTheme.colorScheme.background,
-                tonalElevation = 0.dp
+                properties = DialogProperties(usePlatformDefaultWidth = false)
             ) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(0.dp),
+                    color = MaterialTheme.colorScheme.background
+                ) {
                 val info = preview!!
                 val videoOptions = info.formats.filter { it.hasVideo }
                 val audioOptions = info.formats.filter { it.hasAudio && !it.hasVideo }
@@ -1871,7 +1873,8 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                     }
                 }
             }
-        }
+        
+                }}
     }
 }
 
