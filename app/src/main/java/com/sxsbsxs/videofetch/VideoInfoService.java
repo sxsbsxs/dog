@@ -186,10 +186,17 @@ public final class VideoInfoService {
                 MAIN_HANDLER.post(() -> callback.onSuccess(preview));
             } catch (Throwable failure) {
                 String failureText = failure.toString();
-                String message = YouTubeRequestFallback.isJavaScriptRuntimeFailure(failureText) ||
-                        YouTubeRequestFallback.shouldRetry(url, failure, failureText)
-                        ? YouTubeRequestFallback.userMessage(failureText)
-                        : failure.getMessage();
+                String fullFailureDetails = NetworkErrorClassifier.collectFailureDetails(failure) +
+                        "\\n" + failureText;
+                String message;
+                if (NetworkErrorClassifier.isDnsResolutionFailure(fullFailureDetails)) {
+                    message = NetworkErrorClassifier.dnsFailureMessage();
+                } else if (YouTubeRequestFallback.isJavaScriptRuntimeFailure(fullFailureDetails) ||
+                        YouTubeRequestFallback.shouldRetry(url, failure, fullFailureDetails)) {
+                    message = YouTubeRequestFallback.userMessage(fullFailureDetails);
+                } else {
+                    message = failure.getMessage();
+                }
                 if (message == null || message.trim().isEmpty()) message = failure.getClass().getSimpleName();
                 if (message.length() > 360) message = message.substring(0, 360) + "…";
                 final String callbackMessage = message;
