@@ -54,6 +54,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -447,6 +448,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     var showAdvancedDownloadSettings by rememberSaveable { mutableStateOf(false) }
     val download by DownloadState.state.collectAsState()
     val inputSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val formatSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val loginLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -1891,13 +1893,15 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
         }
 
         if (showFormatSheet && preview != null) {
-            Dialog(
+            ModalBottomSheet(
                 onDismissRequest = { showFormatSheet = false },
-                properties = DialogProperties(usePlatformDefaultWidth = false)
+                sheetState = formatSheetState,
+                modifier = Modifier.fillMaxHeight(0.96f),
+                containerColor = MaterialTheme.colorScheme.background
             ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    shape = RoundedCornerShape(0.dp),
+                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
                     color = MaterialTheme.colorScheme.background
                 ) {
                 val info = preview!!
