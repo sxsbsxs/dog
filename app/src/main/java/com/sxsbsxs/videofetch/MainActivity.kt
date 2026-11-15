@@ -2832,74 +2832,110 @@ private fun HistoryRow(
         item.statusLabel.contains("完成") -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(15.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+    var expanded by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Surface(
-                    modifier = Modifier.size(42.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer
-                ) {
+            Surface(
+                modifier = Modifier.width(112.dp).aspectRatio(16f / 9f),
+                shape = MaterialTheme.shapes.extraSmall,
+                color = MaterialTheme.colorScheme.surfaceContainerHighest
+            ) {
+                Box(contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Default.Folder,
                         contentDescription = null,
-                        modifier = Modifier.padding(10.dp),
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        modifier = Modifier.size(28.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Surface(
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp),
+                        color = Color.Black.copy(alpha = 0.68f),
+                        shape = MaterialTheme.shapes.extraSmall
+                    ) {
+                        Text(
+                            if (item.formatLabel.contains("音频")) "音频" else "媒体",
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 3.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White
+                        )
+                    }
                 }
+            }
+            Column(
+                modifier = Modifier.weight(1f).padding(start = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
                 Text(
                     item.fileName.ifBlank { item.message.ifBlank { "下载任务" } },
-                    modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                Surface(shape = RoundedCornerShape(100.dp), color = statusColor.copy(alpha = 0.12f)) {
-                    Text(
-                        item.statusLabel,
-                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = statusColor
-                    )
-                }
-            }
-            Text(
-                listOf(item.source, item.time).filter { it.isNotBlank() }.joinToString(" · "),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            if (item.formatLabel.isNotBlank()) {
                 Text(
-                    item.formatLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            if (item.message.isNotBlank() && item.fileName.isNotBlank()) {
-                Text(
-                    item.message,
+                    listOf(item.source, item.time).filter { it.isNotBlank() }.joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = MaterialTheme.shapes.extraSmall,
+                        color = statusColor.copy(alpha = 0.12f)
+                    ) {
+                        Text(
+                            item.statusLabel,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = statusColor
+                        )
+                    }
+                    if (item.formatLabel.isNotBlank()) {
+                        Spacer(Modifier.width(7.dp))
+                        Text(
+                            item.formatLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
-            if (item.location.startsWith("content://")) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = onOpen) { Text("打开文件") }
-                    TextButton(onClick = onShare) { Text("分享") }
+            Box {
+                IconButton(onClick = { expanded = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "文件操作")
+                }
+                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    if (item.location.startsWith("content://")) {
+                        DropdownMenuItem(
+                            text = { Text("打开文件") },
+                            leadingIcon = { Icon(Icons.Default.Folder, null) },
+                            onClick = { expanded = false; onOpen() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("分享文件") },
+                            leadingIcon = { Icon(Icons.Default.ArrowForward, null) },
+                            onClick = { expanded = false; onShare() }
+                        )
+                    }
                 }
             }
         }
+        if (item.message.isNotBlank() && item.fileName.isNotBlank()) {
+            Text(
+                item.message,
+                modifier = Modifier.fillMaxWidth().padding(start = 124.dp, bottom = 8.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
     }
 }
 
