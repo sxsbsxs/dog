@@ -162,6 +162,7 @@ import androidx.media3.ui.PlayerControlView
 import androidx.media3.ui.PlayerView
 import java.text.SimpleDateFormat
 import java.io.File
+import java.io.ByteArrayOutputStream
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -463,6 +464,44 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                 Toast.makeText(context, "下载目录已更新", Toast.LENGTH_SHORT).show()
             }.onFailure {
                 Toast.makeText(context, "无法保存文件夹权限，请重新选择", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    val cookieImportPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { pickedUri ->
+        if (pickedUri != null) {
+            runCatching {
+                val cookieBytes = context.contentResolver.openInputStream(pickedUri)?.use { input ->
+                    val output = ByteArrayOutputStream()
+                    val buffer = ByteArray(8192)
+                    var totalBytes = 0
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        totalBytes += count
+                        if (totalBytes > 2 * 1024 * 1024) {
+                            throw IllegalArgumentException("Cookie 文件超过 2 MB，已取消导入")
+                        }
+                        output.write(buffer, 0, count)
+                    }
+                    output.toByteArray()
+                } ?: throw IllegalStateException("无法读取所选 Cookie 文件")
+
+                val importedCount = SecureCookieStore.importYoutubeCookieFile(
+                    context, String(cookieBytes, Charsets.UTF_8)
+                )
+                authorizedSites = SecureCookieStore.listAuthorizedSites(context)
+                hasCookieJar = SecureCookieStore.hasCookieJar(context)
+                Toast.makeText(
+                    context,
+                    "已加密导入 $importedCount 条 YouTube/Google Cookie",
+                    Toast.LENGTH_LONG
+                ).show()
+            }.onFailure { failure ->
+                val message = failure.message?.takeIf { it.isNotBlank() } ?: "Cookie 文件导入失败"
+                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -1954,6 +1993,22 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                 ) {
                                     Text(if (hasCookieJar) "添加其他网站授权" else "登录网站账号")
                                 }
+                                OutlinedButton(
+                                    onClick = {
+                                        cookieImportPicker.launch(
+                                            arrayOf("text/plain", "application/octet-stream")
+                                        )
+                                    },
+                                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                                    shape = RoundedCornerShape(16.dp)
+                                ) {
+                                    Text("导入 YouTube cookies.txt")
+                                }
+                                Text(
+                                    "可导入浏览器导出的 Netscape 格式 Cookie 文件。只保存 YouTube/Google 域名条目，并在本机加密；Cookie 等同账号凭证，请勿分享。",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                                 if (hasCookieJar) {
                                     TextButton(
                                         onClick = {
