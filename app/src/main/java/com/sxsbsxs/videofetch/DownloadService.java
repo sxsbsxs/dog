@@ -296,7 +296,29 @@ public class DownloadService extends Service {
             // 0.18.1's 4-argument overload merges stderr into stdout. yt-dlp
             // progress output can be written to stderr; without this flag the
             // upstream StreamProcessExtractor never sees those lines.
-            YoutubeDL.getInstance().execute(request, PROCESS_ID, true, progressCallback);
+            try {
+                YoutubeDL.getInstance().execute(request, PROCESS_ID, true, progressCallback);
+            } catch (Exception firstFailure) {
+                String firstDiagnostics;
+                synchronized (processOutputTail) {
+                    firstDiagnostics = processOutputTail.toString();
+                }
+                if (!YouTubeRequestFallback.shouldRetry(url, firstFailure, firstDiagnostics)) {
+                    throw firstFailure;
+                }
+
+                // Preserve yt-dlp's default clients as the primary route. A bot
+                // challenge gets one fallback attempt using TV/Web Safari clients.
+                DownloadState.INSTANCE.updateMessage(
+                        "YouTube 触发反机器人验证，正在切换备用客户端重试…");
+                YouTubeRequestFallback.applyFallback(request);
+                try {
+                    YoutubeDL.getInstance().execute(request, PROCESS_ID, true, progressCallback);
+                } catch (Exception retryFailure) {
+                    retryFailure.addSuppressed(firstFailure);
+                    throw retryFailure;
+                }
+            }
             if (generation != activeGeneration || Thread.currentThread().isInterrupted()) {
                 throw new InterruptedException("Download canceled after extraction");
             }
@@ -486,7 +508,10 @@ public class DownloadService extends Service {
         if (detail.length() > 1800) detail = detail.substring(detail.length() - 1800);
         String normalized = detail.toLowerCase(java.util.Locale.ROOT);
         String friendly;
-        if (normalized.contains("unsupported url") ||
+        if (YouTubeRequestFallback.isBotChallenge(detail) ||
+                YouTubeRequestFallback.isBotChallenge(processOutputTail)) {
+            friendly = YouTubeRequestFallback.userMessage();
+        } else if (normalized.contains("unsupported url") ||
                 normalized.contains("no suitable extractor") ||
                 normalized.contains("no extractor")) {
             friendly = "暂不支持这个链接，请复制具体的视频播放页地址";
