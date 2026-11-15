@@ -497,7 +497,7 @@ public class DownloadService extends Service {
         if (detail.length() > 3600) detail = detail.substring(detail.length() - 3600);
         String normalized = detail.toLowerCase(java.util.Locale.ROOT);
         String friendly;
-        String combinedDiagnostics = detail + "\\n" + processOutputTail;
+        String combinedDiagnostics = detail + "\n" + processOutputTail;
         if (YouTubeRequestFallback.isRetryableFailure(combinedDiagnostics)) {
             friendly = YouTubeRequestFallback.userMessage(combinedDiagnostics);
         } else if (normalized.contains("unsupported url") ||
@@ -538,7 +538,7 @@ public class DownloadService extends Service {
      */
     private String buildSafeDiagnostic(Throwable failure, String processOutputTail) {
         StringBuilder report = new StringBuilder();
-        report.append("VideoFetch 诊断信息\\n");
+        report.append("VideoFetch 诊断信息\n");
         try {
             String version = YoutubeDL.getInstance().versionName(getApplicationContext());
             if (version == null || version.trim().isEmpty()) {
@@ -546,35 +546,35 @@ public class DownloadService extends Service {
             }
             report.append("yt-dlp: ")
                     .append(version == null || version.trim().isEmpty() ? "unknown" : version)
-                    .append('\\n');
+                    .append('\n');
         } catch (Throwable ignored) {
-            report.append("yt-dlp: unknown\\n");
+            report.append("yt-dlp: unknown\n");
         }
 
         File quickJs = new File(getApplicationInfo().nativeLibraryDir, "libqjs.so");
-        report.append("QuickJS: ").append(quickJs.isFile() ? "present" : "missing").append('\\n');
+        report.append("QuickJS: ").append(quickJs.isFile() ? "present" : "missing").append('\n');
         try {
             String jar = SecureCookieStore.loadCookieJar(getApplicationContext());
             report.append("Cookie jar: ")
                     .append(CookieJarExporter.countCookies(jar)).append(" rows / ")
-                    .append(CookieJarExporter.countDomains(jar)).append(" domains; values hidden\\n");
+                    .append(CookieJarExporter.countDomains(jar)).append(" domains; values hidden\n");
         } catch (Throwable ignored) {
-            report.append("Cookie jar: unavailable\\n");
+            report.append("Cookie jar: unavailable\n");
         }
 
         String nested = collectFailureDetails(failure);
         if (!nested.trim().isEmpty()) {
-            report.append("\\n--- yt-dlp failure chain ---\\n").append(nested);
+            report.append("\n--- yt-dlp failure chain ---\n").append(nested);
         }
         if (processOutputTail != null && !processOutputTail.trim().isEmpty()) {
-            report.append("\\n--- process output tail ---\\n").append(processOutputTail.trim());
+            report.append("\n--- process output tail ---\n").append(processOutputTail.trim());
         }
 
         String safe = report.toString()
-                .replaceAll("(?im)(cookie|set-cookie)\\\\s*:\\\\s*[^\\\\r\\\\n]+", "$1: [已隐藏]")
-                .replaceAll("(?i)(--cookies\\\\s+)[^\\\\s]+", "$1[已隐藏]")
-                .replaceAll("(?i)\\\\b(SID|HSID|SSID|SAPISID|APISID|LOGIN_INFO|LSID|NID|__Host-[A-Za-z0-9_-]+|__Secure-[A-Za-z0-9_-]+)\\\\s*=\\\\s*[^\\\\s;]+", "$1=[已隐藏]")
-                .replaceAll("https?://[^\\\\s\\\\\"<>]*\\\\?[^\\\\s\\\\\"<>]*", "[含查询参数的 URL 已隐藏]");
+                .replaceAll("(?im)(cookie|set-cookie)\\s*:\\s*[^\\r\\n]+", "$1: [已隐藏]")
+                .replaceAll("(?i)(--cookies\\s+)[^\\s]+", "$1[已隐藏]")
+                .replaceAll("(?i)\\b(SID|HSID|SSID|SAPISID|APISID|LOGIN_INFO|LSID|NID|__Host-[A-Za-z0-9_-]+|__Secure-[A-Za-z0-9_-]+)\\s*=\\s*[^\\s;]+", "$1=[已隐藏]")
+                .replaceAll("https?://[^\\s<>\\x22]*\\?[^\\s<>\\x22]*", "[含查询参数的 URL 已隐藏]");
         if (safe.length() > 4800) safe = safe.substring(safe.length() - 4800);
         return safe;
     }
