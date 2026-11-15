@@ -1822,7 +1822,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
                                 contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                    horizontal = 20.dp, bottom = 24.dp
+                                    start = 20.dp, end = 20.dp, bottom = 24.dp
                                 ),
                                 verticalArrangement = Arrangement.spacedBy(0.dp)
                             ) {
