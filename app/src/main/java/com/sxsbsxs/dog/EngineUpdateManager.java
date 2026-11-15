@@ -1,6 +1,10 @@
 package com.sxsbsxs.dog;
 
 import android.content.Context;
+import android.content.SharedPreferences;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -24,6 +28,40 @@ public final class EngineUpdateManager {
 
     public static boolean isUpdating() {
         return UPDATING.get();
+    }
+
+    /**
+     * Weekly background check inspired by Seal's updater. Runs only on a
+     * validated network and never while a download or metadata extraction is active.
+     */
+    public static void updateIfDue(Context context, boolean wifiOnly) {
+        Context app = context.getApplicationContext();
+        SharedPreferences preferences = app.getSharedPreferences("dog_settings", Context.MODE_PRIVATE);
+        if (!preferences.getBoolean("auto_update_engine", true)) return;
+        if (UPDATING.get() || DownloadState.INSTANCE.isRunning() || VideoInfoService.isInspecting()) return;
+
+        long lastCheck = preferences.getLong("last_engine_update_check", 0L);
+        long oneWeek = 7L * 24L * 60L * 60L * 1000L;
+        if (System.currentTimeMillis() - lastCheck < oneWeek) return;
+
+        ConnectivityManager manager =
+                (ConnectivityManager) app.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (manager == null) return;
+        Network network = manager.getActiveNetwork();
+        NetworkCapabilities capabilities = network == null ? null : manager.getNetworkCapabilities(network);
+        if (capabilities == null ||
+                !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ||
+                !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
+            return;
+        }
+        if (wifiOnly && !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return;
+
+        update(app, message -> {
+            if (message != null &&
+                    (message.startsWith("yt-dlp 已更新") || message.startsWith("yt-dlp 已是最新版本"))) {
+                preferences.edit().putLong("last_engine_update_check", System.currentTimeMillis()).apply();
+            }
+        });
     }
 
     public static void update(Context context, Callback callback) {
