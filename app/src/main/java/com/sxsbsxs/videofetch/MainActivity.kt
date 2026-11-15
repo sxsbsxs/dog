@@ -155,6 +155,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Date
 import java.util.Locale
+import com.sxsbsxs.videofetch.ui.svg.download
+import com.sxsbsxs.videofetch.ui.svg.videoSteaming
 
 class MainActivity : ComponentActivity() {
     private var sharedUrl by mutableStateOf<String?>(null)
@@ -1060,6 +1062,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                         "finished" -> Icons.Default.History
                                         else -> Icons.Default.Folder
                                     },
+                                    illustration = DynamicColorImageVectors.download(),
                                     title = when (queueFilter) {
                                         "downloading" -> "没有正在下载的任务"
                                         "queued" -> "没有等待中的任务"
@@ -1301,6 +1304,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                         } else {
                             EmptyState(
                                 icon = Icons.Default.Download,
+                                illustration = DynamicColorImageVectors.download(),
                                 title = "目前没有下载任务",
                                 description = "粘贴视频链接，选择格式后开始下载。",
                                 action = "去粘贴视频链接",
@@ -1386,6 +1390,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                             item {
                                 EmptyState(
                                     icon = Icons.Default.History,
+                                    illustration = if (allHistoryItems.isEmpty()) DynamicColorImageVectors.videoSteaming() else null,
                                     title = if (allHistoryItems.isEmpty()) "还没有下载记录" else "没有找到匹配记录",
                                     description = if (allHistoryItems.isEmpty())
                                         "完成或失败的任务会保存在这里。"
@@ -3093,15 +3098,25 @@ private fun EmptyState(
     title: String,
     description: String,
     action: String,
-    onAction: () -> Unit
+    onAction: () -> Unit,
+    illustration: ImageVector? = null
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp, horizontal = 24.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp, horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Surface(modifier = Modifier.size(64.dp), shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-            Icon(icon, contentDescription = null, modifier = Modifier.padding(17.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+        if (illustration != null) {
+            Image(
+                imageVector = illustration,
+                contentDescription = null,
+                modifier = Modifier.fillMaxWidth(0.78f).height(190.dp),
+                contentScale = ContentScale.Fit
+            )
+        } else {
+            Surface(modifier = Modifier.size(64.dp), shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                Icon(icon, contentDescription = null, modifier = Modifier.padding(17.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+            }
         }
         Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
         Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
