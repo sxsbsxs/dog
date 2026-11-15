@@ -344,7 +344,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     var previewError by remember { mutableStateOf("") }
     var engineUpdating by remember { mutableStateOf(false) }
     var showFormatSheet by rememberSaveable { mutableStateOf(false) }
-    var showInputSheet by rememberSaveable { mutableStateOf(!initialUrl.isNullOrBlank()) }
+    var showInputSheet by rememberSaveable { mutableStateOf(false) }
     var queueFilter by rememberSaveable { mutableStateOf("all") }
     var showAdvancedDownloadSettings by rememberSaveable { mutableStateOf(false) }
     var settingsReturnTab by rememberSaveable { mutableStateOf(0) }
