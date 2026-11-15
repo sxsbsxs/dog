@@ -1872,9 +1872,9 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                         )
                     }
                 }
+                }
             }
-        
-                }}
+        }
     }
 }
 
