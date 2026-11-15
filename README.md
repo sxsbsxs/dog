@@ -42,6 +42,10 @@ APK 输出目录：`app/build/outputs/apk/debug/`。GitHub Actions 会运行原�
 
 下载完成后会发布到系统公共目录 `Download/video-dl`。
 
+## UI 来源与许可证
+
+本项目 Android UI 的部分布局、导航结构和 Compose 组件改编自 [JunkFood02/Seal](https://github.com/JunkFood02/Seal)，并已针对 video-dl 的页面状态与操作重新接线；下载服务、Cookie、解析和媒体处理仍由 video-dl 自己的实现负责。UI 改动不代表本应用是 Seal，也不使用 Seal 作为应用名称。上游 UI 项目采用 GPL-3.0，相关改编部分同样遵循 GPL-3.0；修改记录见 `THIRD_PARTY_NOTICES.md`。
+
 ## 许可证
 
 本项目代码采用 GPL-3.0。yt-dlp 使用 The Unlicense，文本位于 `LICENSES/yt-dlp-UNLICENSE`。Android yt-dlp runtime、FFmpeg 和 aria2c 的许可证与二进制通知请参考各上游项目。
