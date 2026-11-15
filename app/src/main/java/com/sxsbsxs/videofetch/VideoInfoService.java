@@ -145,7 +145,11 @@ public final class VideoInfoService {
             try {
                 YtDlpEngine.initialize(app);
                 cookieFile = SecureCookieStore.createTemporaryCookieFile(app);
-                YoutubeDLRequest request = createInfoRequest(app, targetUrl, cookieFile, null);
+                // Avoid yt-dlp's cookie-sensitive default client bundle: its
+                // web_embedded member can fail on missing INNERTUBE_CONTEXT.
+                // Start with one explicit client, then fall back to Safari HLS.
+                String primaryClient = YouTubeRequestFallback.isYoutubeUrl(targetUrl) ? "tv" : null;
+                YoutubeDLRequest request = createInfoRequest(app, targetUrl, cookieFile, primaryClient);
 
                 // Use the raw JSON output so every entry in yt-dlp's formats[]
                 // is inspected, rather than trusting a partially mapped model.
@@ -303,27 +307,23 @@ public final class VideoInfoService {
                 throw firstFailure;
             }
 
-            YoutubeDLRequest tvRequest = createInfoRequest(app, url, cookieFile, "tv");
+            // The primary attempt already used TV for YouTube. Continue directly
+            // to isolated Safari HLS instead of retrying TV a second time.
+            YoutubeDLRequest safariRequest = createInfoRequest(app, url, cookieFile, "web_safari");
             try {
-                return YoutubeDL.getInstance().execute(tvRequest, null, false, null);
-            } catch (Exception tvFailure) {
-                YoutubeDLRequest safariRequest = createInfoRequest(app, url, cookieFile, "web_safari");
+                return YoutubeDL.getInstance().execute(safariRequest, null, false, null);
+            } catch (Exception safariFailure) {
+                // Retry public Safari HLS without account cookies in case
+                // the saved YouTube session is stale or rejected.
+                YoutubeDLRequest guestSafariRequest =
+                        createInfoRequest(app, url, null, "web_safari");
                 try {
-                    return YoutubeDL.getInstance().execute(safariRequest, null, false, null);
-                } catch (Exception safariFailure) {
-                    // Retry public Safari HLS without account cookies in case
-                    // the saved YouTube session is stale or rejected.
-                    YoutubeDLRequest guestSafariRequest =
-                            createInfoRequest(app, url, null, "web_safari");
-                    try {
-                        return YoutubeDL.getInstance().execute(
-                                guestSafariRequest, null, false, null);
-                    } catch (Exception guestFailure) {
-                        guestFailure.addSuppressed(safariFailure);
-                        guestFailure.addSuppressed(tvFailure);
-                        guestFailure.addSuppressed(firstFailure);
-                        throw guestFailure;
-                    }
+                    return YoutubeDL.getInstance().execute(
+                            guestSafariRequest, null, false, null);
+                } catch (Exception guestFailure) {
+                    guestFailure.addSuppressed(safariFailure);
+                    guestFailure.addSuppressed(firstFailure);
+                    throw guestFailure;
                 }
             }
         }
