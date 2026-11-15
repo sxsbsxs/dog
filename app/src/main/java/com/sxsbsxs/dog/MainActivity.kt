@@ -883,6 +883,48 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                                             )
                                         }
                                     }
+                                    if (download.queuedLabels.isNotEmpty()) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    "等待队列",
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                Spacer(Modifier.weight(1f))
+                                                Text(
+                                                    download.queuedCount.toString() + " 项",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            download.queuedLabels.take(4).forEachIndexed { index, label ->
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        (index + 1).toString().padStart(2, '0'),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.primary
+                                                    )
+                                                    Spacer(Modifier.width(9.dp))
+                                                    Text(
+                                                        label,
+                                                        modifier = Modifier.weight(1f),
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                            }
+                                            if (download.queuedLabels.size > 4) {
+                                                Text(
+                                                    "还有 " + (download.queuedLabels.size - 4) + " 项等待中",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    }
                                     if (download.progressKnown) {
                                         LinearProgressIndicator(progress = { download.progress / 100f }, modifier = Modifier.fillMaxWidth())
                                     } else {
