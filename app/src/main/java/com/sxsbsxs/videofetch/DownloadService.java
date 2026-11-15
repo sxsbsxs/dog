@@ -379,8 +379,9 @@ public class DownloadService extends Service {
                 diagnostic = processOutputTail.toString();
             }
             String message = formatDownloadError(failure, diagnostic);
+            String safeDiagnostic = buildSafeDiagnostic(failure, diagnostic);
             DownloadHistoryStore.record(this, url, "", "", "failed", message, task.formatLabel);
-            DownloadState.INSTANCE.failed(message);
+            DownloadState.INSTANCE.failed(message, safeDiagnostic);
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
                 manager.notify(NOTIFICATION_ID, buildNotification(message, 0, false));
@@ -461,19 +462,42 @@ public class DownloadService extends Service {
         return matcher.find() ? matcher.group(1) : "";
     }
 
-    private String formatDownloadError(Throwable failure, String processOutputTail) {
-        String detail = failure == null ? "" : failure.getMessage();
-        if (detail == null || detail.trim().isEmpty() ||
-                (failure != null && failure.getClass().getSimpleName().equals(detail.trim()))) {
-            String output = processOutputTail == null ? "" : processOutputTail.trim();
-            detail = output.isEmpty()
-                    ? (failure == null ? "未知错误" : failure.getClass().getSimpleName())
-                    : output;
+    private String collectFailureDetails(Throwable failure) {
+        StringBuilder details = new StringBuilder();
+        appendFailureDetails(details, failure, "error", 0);
+        return details.toString();
+    }
+
+    private void appendFailureDetails(
+            StringBuilder details, Throwable failure, String label, int depth
+    ) {
+        if (failure == null || depth > 6 || details.length() > 9000) return;
+        String message = failure.getMessage();
+        if (message == null || message.trim().isEmpty()) {
+            message = failure.getClass().getSimpleName();
         }
-        if (detail.length() > 1800) detail = detail.substring(detail.length() - 1800);
+        if (details.length() > 0) details.append('\n');
+        details.append('[').append(label).append("] ")
+                .append(failure.getClass().getSimpleName()).append(": ")
+                .append(message.trim());
+
+        Throwable[] suppressed = failure.getSuppressed();
+        for (int i = 0; i < suppressed.length; i++) {
+            appendFailureDetails(details, suppressed[i], "suppressed-" + (i + 1), depth + 1);
+        }
+        Throwable cause = failure.getCause();
+        if (cause != null && cause != failure) {
+            appendFailureDetails(details, cause, "cause", depth + 1);
+        }
+    }
+
+    private String formatDownloadError(Throwable failure, String processOutputTail) {
+        String detail = collectFailureDetails(failure);
+        if (detail.trim().isEmpty()) detail = processOutputTail == null ? "" : processOutputTail.trim();
+        if (detail.length() > 3600) detail = detail.substring(detail.length() - 3600);
         String normalized = detail.toLowerCase(java.util.Locale.ROOT);
         String friendly;
-        String combinedDiagnostics = detail + "\n" + processOutputTail;
+        String combinedDiagnostics = detail + "\\n" + processOutputTail;
         if (YouTubeRequestFallback.isRetryableFailure(combinedDiagnostics)) {
             friendly = YouTubeRequestFallback.userMessage(combinedDiagnostics);
         } else if (normalized.contains("unsupported url") ||
@@ -481,7 +505,7 @@ public class DownloadService extends Service {
                 normalized.contains("no extractor")) {
             friendly = "暂不支持这个链接，请复制具体的视频播放页地址";
         } else if (normalized.contains("403") || normalized.contains("forbidden")) {
-            friendly = "网站拒绝访问（403），请尝试登录授权或稍后重试";
+            friendly = "网站拒绝访问（403），请检查解析引擎版本和网络出口";
         } else if (normalized.contains("sign in") ||
                 normalized.contains("login required") ||
                 normalized.contains("authentication") ||
@@ -505,6 +529,54 @@ public class DownloadService extends Service {
             friendly = detail.length() > 180 ? detail.substring(0, 180) + "…" : detail;
         }
         return "下载失败：" + friendly;
+    }
+
+    /**
+     * Build a support report with engine/runtime metadata and the full fallback
+     * chain. Cookie values and signed URL query strings are redacted before it
+     * is stored in UI state or copied to the clipboard.
+     */
+    private String buildSafeDiagnostic(Throwable failure, String processOutputTail) {
+        StringBuilder report = new StringBuilder();
+        report.append("VideoFetch 诊断信息\\n");
+        try {
+            String version = YoutubeDL.getInstance().versionName(getApplicationContext());
+            if (version == null || version.trim().isEmpty()) {
+                version = YoutubeDL.getInstance().version(getApplicationContext());
+            }
+            report.append("yt-dlp: ")
+                    .append(version == null || version.trim().isEmpty() ? "unknown" : version)
+                    .append('\\n');
+        } catch (Throwable ignored) {
+            report.append("yt-dlp: unknown\\n");
+        }
+
+        File quickJs = new File(getApplicationInfo().nativeLibraryDir, "libqjs.so");
+        report.append("QuickJS: ").append(quickJs.isFile() ? "present" : "missing").append('\\n');
+        try {
+            String jar = SecureCookieStore.loadCookieJar(getApplicationContext());
+            report.append("Cookie jar: ")
+                    .append(CookieJarExporter.countCookies(jar)).append(" rows / ")
+                    .append(CookieJarExporter.countDomains(jar)).append(" domains; values hidden\\n");
+        } catch (Throwable ignored) {
+            report.append("Cookie jar: unavailable\\n");
+        }
+
+        String nested = collectFailureDetails(failure);
+        if (!nested.trim().isEmpty()) {
+            report.append("\\n--- yt-dlp failure chain ---\\n").append(nested);
+        }
+        if (processOutputTail != null && !processOutputTail.trim().isEmpty()) {
+            report.append("\\n--- process output tail ---\\n").append(processOutputTail.trim());
+        }
+
+        String safe = report.toString()
+                .replaceAll("(?im)(cookie|set-cookie)\\\\s*:\\\\s*[^\\\\r\\\\n]+", "$1: [已隐藏]")
+                .replaceAll("(?i)(--cookies\\\\s+)[^\\\\s]+", "$1[已隐藏]")
+                .replaceAll("(?i)\\\\b(SID|HSID|SSID|SAPISID|APISID|LOGIN_INFO|LSID|NID|__Host-[A-Za-z0-9_-]+|__Secure-[A-Za-z0-9_-]+)\\\\s*=\\\\s*[^\\\\s;]+", "$1=[已隐藏]")
+                .replaceAll("https?://[^\\\\s\\\\\"<>]*\\\\?[^\\\\s\\\\\"<>]*", "[含查询参数的 URL 已隐藏]");
+        if (safe.length() > 4800) safe = safe.substring(safe.length() - 4800);
+        return safe;
     }
 
     private void applyCookieOptions(YoutubeDLRequest request, File temporaryCookieFile) {
