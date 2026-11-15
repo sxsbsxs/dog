@@ -1060,7 +1060,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                         "downloading" -> "新建一个下载任务后，进度会显示在这里。"
                                         "queued" -> "添加多个链接后，后续任务会排在这里。"
                                         "finished" -> "最近完成或失败的任务会显示在这里。"
-                                        else -> "把视频链接交给 VideoFetch，格式和画质会在解析后选择。"
+                                        else -> "把视频链接交给 video-dl，格式和画质会在解析后选择。"
                                     },
                                     action = "新建下载",
                                     onAction = {
