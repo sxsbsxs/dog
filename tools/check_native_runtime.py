@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify Android APK native ABI payloads for yt-dlp, FFmpeg, aria2c and Dog."""
+"""Verify Android APK native ABI payloads for yt-dlp, FFmpeg, aria2c and VideoFetch."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ REQUIRED_PER_ABI = {
     "libffmpeg.so",
     "libffmpeg.zip.so",
     "libaria2c.zip.so",
-    "libdogmedia.so",
+    "libvideofetchmedia.so",
 }
 
 
@@ -43,7 +43,7 @@ def inspect_apk(apk: Path) -> int:
         if missing:
             failures.append(f"{abi}: missing {', '.join(missing)}")
         else:
-            print(f"{abi}: CPython + QuickJS + FFmpeg + aria2c + dogmedia OK")
+            print(f"{abi}: CPython + QuickJS + FFmpeg + aria2c + videofetchmedia OK")
 
     if failures:
         print("\n".join(failures), file=sys.stderr)

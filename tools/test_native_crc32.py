@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
     uint32_t checksum = 0;
     if (argc != 2) return 2;
 
-    if (dog_crc32_file(argv[1], &byte_count, &checksum) != 0) {
+    if (videofetch_crc32_file(argv[1], &byte_count, &checksum) != 0) {
         return 3;
     }
 
@@ -42,10 +42,10 @@ def main() -> int:
     if not C_SOURCE.is_file() or not HEADER.is_file():
         raise SystemExit("Native C checksum source files are missing")
 
-    payload = bytes(range(256)) * 4096 + b"Dog downloader native integrity test\x00\xff"
+    payload = bytes(range(256)) * 4096 + b"VideoFetch downloader native integrity test\x00\xff"
     expected = f"{len(payload)}:{zlib.crc32(payload) & 0xFFFFFFFF:08x}"
 
-    with tempfile.TemporaryDirectory(prefix="dog-crc32-") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="videofetch-crc32-") as temp_dir:
         temp = Path(temp_dir)
         input_file = temp / "sample-media.bin"
         harness_file = temp / "crc32_harness.c"
