@@ -143,7 +143,7 @@ object DownloadState {
             lastUrl = previous.lastUrl,
             formatSelector = previous.formatSelector,
             audioOnly = previous.audioOnly,
-            queuedLabels = previous.queuedLabels
+            queuedLabels = emptyList()
         )
     }
 }
