@@ -61,12 +61,34 @@ public class DownloadService extends Service {
         final String formatSelector;
         final boolean audioOnly;
         final String formatLabel;
+        final String videoContainer;
+        final String audioFormat;
+        final String subtitleLanguages;
+        final boolean downloadSubtitles;
+        final boolean downloadPlaylist;
+        final boolean embedThumbnail;
+        final boolean skipExisting;
+        final int concurrentFragments;
 
-        DownloadTask(String url, String formatSelector, boolean audioOnly, String formatLabel) {
+        DownloadTask(
+                String url,
+                String formatSelector,
+                boolean audioOnly,
+                String formatLabel,
+                android.content.SharedPreferences preferences
+        ) {
             this.url = url;
             this.formatSelector = formatSelector == null ? "" : formatSelector;
             this.audioOnly = audioOnly;
             this.formatLabel = formatLabel == null ? "" : formatLabel;
+            this.videoContainer = preferences.getString("video_container", "mp4");
+            this.audioFormat = preferences.getString("audio_format", "mp3");
+            this.subtitleLanguages = preferences.getString("subtitle_languages", "all");
+            this.downloadSubtitles = preferences.getBoolean("download_subtitles", false);
+            this.downloadPlaylist = preferences.getBoolean("download_playlist", false);
+            this.embedThumbnail = preferences.getBoolean("embed_thumbnail", true);
+            this.skipExisting = preferences.getBoolean("skip_existing", false);
+            this.concurrentFragments = preferences.getInt("concurrent_fragments", 4);
         }
     }
 
@@ -118,7 +140,10 @@ public class DownloadService extends Service {
                 getSharedPreferences("dog_settings", Context.MODE_PRIVATE).getBoolean("audio_only", false)
         );
         String formatLabel = intent.getStringExtra(EXTRA_FORMAT_LABEL);
-        DownloadTask task = new DownloadTask(url, formatSelector, audioOnly, formatLabel);
+        android.content.SharedPreferences taskPreferences =
+                getSharedPreferences("dog_settings", Context.MODE_PRIVATE);
+        DownloadTask task = new DownloadTask(
+                url, formatSelector, audioOnly, formatLabel, taskPreferences);
 
         synchronized (queueLock) {
             latestStartId = startId;
@@ -161,8 +186,7 @@ public class DownloadService extends Service {
             Map<String, String> before = snapshotFiles(outputDirectory);
             YtDlpEngine.initialize(getApplicationContext());
 
-            YoutubeDLRequest request = buildRequest(
-                    url, outputDirectory, task.formatSelector, task.audioOnly);
+            YoutubeDLRequest request = buildRequest(url, outputDirectory, task);
 
             // The in-app login WebView exports a complete Netscape cookie jar.
             // Materialize it only for this yt-dlp process; the encrypted source stays private.
@@ -411,8 +435,7 @@ public class DownloadService extends Service {
         return "下载失败：" + friendly;
     }
 
-    private YoutubeDLRequest buildRequest(
-            String url, File directory, String selectedFormat, boolean audioOnly) {
+    private YoutubeDLRequest buildRequest(String url, File directory, DownloadTask task) {
         YoutubeDLRequest request = new YoutubeDLRequest(url);
         request.addOption("-o", new File(directory, "%(title).200B.%(ext)s").getAbsolutePath());
         request.addOption("--newline");
@@ -429,19 +452,17 @@ public class DownloadService extends Service {
         request.addOption("--file-access-retries", "3");
         request.addOption("--embed-metadata");
 
-        android.content.SharedPreferences preferences =
-                getSharedPreferences("dog_settings", Context.MODE_PRIVATE);
-        boolean downloadSubtitles = preferences.getBoolean("download_subtitles", false);
-        boolean downloadPlaylist = preferences.getBoolean("download_playlist", false);
-        int concurrentFragments = Math.max(1, Math.min(8, preferences.getInt("concurrent_fragments", 4)));
+        boolean downloadSubtitles = task.downloadSubtitles;
+        boolean downloadPlaylist = task.downloadPlaylist;
+        int concurrentFragments = Math.max(1, Math.min(8, task.concurrentFragments));
         request.addOption("--concurrent-fragments", Integer.toString(concurrentFragments));
-        if (preferences.getBoolean("skip_existing", false)) {
+        if (task.skipExisting) {
             request.addOption("--download-archive", new File(getFilesDir(), "download-archive.txt").getAbsolutePath());
         }
         request.addOption(downloadPlaylist ? "--yes-playlist" : "--no-playlist");
         if (downloadPlaylist) request.addOption("--no-abort-on-error");
-        if (audioOnly) {
-            String audioSelector = selectedFormat == null ? "" : selectedFormat.trim();
+        if (task.audioOnly) {
+            String audioSelector = task.formatSelector.trim();
             if (!audioSelector.isEmpty()) {
                 if (!isSafeFormatSelector(audioSelector) || audioSelector.contains("+")) {
                     throw new IllegalArgumentException("无效的音频格式 ID");
@@ -451,18 +472,18 @@ public class DownloadService extends Service {
                 request.addOption("-f", "ba/b");
             }
             request.addOption("-x");
-            String audioFormat = preferences.getString("audio_format", "mp3");
+            String audioFormat = task.audioFormat;
             if (!"mp3".equals(audioFormat) && !"m4a".equals(audioFormat) &&
                     !"opus".equals(audioFormat) && !"flac".equals(audioFormat)) {
                 audioFormat = "mp3";
             }
             request.addOption("--audio-format", audioFormat);
             request.addOption("--audio-quality", "0");
-            if (preferences.getBoolean("embed_thumbnail", true)) {
+            if (task.embedThumbnail) {
                 request.addOption("--embed-thumbnail");
             }
         } else {
-            String format = selectedFormat == null ? "" : selectedFormat.trim();
+            String format = task.formatSelector.trim();
             if (!format.isEmpty()) {
                 if (!isSafeFormatSelector(format)) {
                     throw new IllegalArgumentException("无效的视频/音频格式 ID");
@@ -474,7 +495,7 @@ public class DownloadService extends Service {
                         : "bv*+ba/b";
             }
             request.addOption("-f", format);
-            String videoContainer = preferences.getString("video_container", "mp4");
+            String videoContainer = task.videoContainer;
             if (!"mp4".equals(videoContainer) && !"mkv".equals(videoContainer) &&
                     !"webm".equals(videoContainer)) {
                 videoContainer = "mp4";
@@ -485,7 +506,7 @@ public class DownloadService extends Service {
         if (downloadSubtitles) {
             request.addOption("--write-subs");
             request.addOption("--write-auto-subs");
-            String subtitleLanguages = preferences.getString("subtitle_languages", "all");
+            String subtitleLanguages = task.subtitleLanguages;
             if (subtitleLanguages == null || subtitleLanguages.trim().isEmpty()) {
                 subtitleLanguages = "all";
             }
