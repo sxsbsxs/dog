@@ -490,6 +490,8 @@ public class DownloadService extends Service {
 
     private YoutubeDLRequest buildRequest(String url, File directory, DownloadTask task) {
         YoutubeDLRequest request = new YoutubeDLRequest(url);
+        request.addOption("--plugin-dirs",
+                YtDlpEngine.getPluginDirectory(getApplicationContext()).getAbsolutePath());
         request.addOption("-o", new File(directory, "%(title).200B.%(ext)s").getAbsolutePath());
         request.addOption("--newline");
         request.addOption("--progress");
