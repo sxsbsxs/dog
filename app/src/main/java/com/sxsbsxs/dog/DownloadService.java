@@ -394,29 +394,31 @@ public class DownloadService extends Service {
     }
 
     private int resolveProgress(Float nativeProgress, String outputLine) {
+        // Prefer the current raw line. The upstream extractor can retain its
+        // previous percentage when a later line has an unknown ETA.
+        if (outputLine != null && !outputLine.isEmpty()) {
+            java.util.regex.Matcher download = DOWNLOAD_PROGRESS_PATTERN.matcher(outputLine);
+            if (download.find()) {
+                try {
+                    return Math.min(100, Math.max(0,
+                            (int) Math.round(Double.parseDouble(download.group(1)))));
+                } catch (NumberFormatException ignored) {
+                    return -1;
+                }
+            }
+
+            java.util.regex.Matcher aria2 = ARIA2_PROGRESS_PATTERN.matcher(outputLine);
+            if (aria2.find()) {
+                try {
+                    return Math.min(100, Math.max(0,
+                            (int) Math.round(Double.parseDouble(aria2.group(1)))));
+                } catch (NumberFormatException ignored) {
+                    return -1;
+                }
+            }
+        }
         if (nativeProgress != null && Float.isFinite(nativeProgress) && nativeProgress >= 0f) {
             return Math.min(100, Math.round(nativeProgress));
-        }
-        if (outputLine == null || outputLine.isEmpty()) return -1;
-
-        java.util.regex.Matcher download = DOWNLOAD_PROGRESS_PATTERN.matcher(outputLine);
-        if (download.find()) {
-            try {
-                return Math.min(100, Math.max(0,
-                        (int) Math.round(Double.parseDouble(download.group(1)))));
-            } catch (NumberFormatException ignored) {
-                return -1;
-            }
-        }
-
-        java.util.regex.Matcher aria2 = ARIA2_PROGRESS_PATTERN.matcher(outputLine);
-        if (aria2.find()) {
-            try {
-                return Math.min(100, Math.max(0,
-                        (int) Math.round(Double.parseDouble(aria2.group(1)))));
-            } catch (NumberFormatException ignored) {
-                return -1;
-            }
         }
         return -1;
     }
