@@ -17,6 +17,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TextField
@@ -124,13 +125,19 @@ import java.util.Locale
 class MainActivity : ComponentActivity() {
     private var sharedUrl by mutableStateOf<String?>(null)
     private var pendingDownloadUrl: String? = null
+    private var pendingFormatSelector: String = ""
+    private var pendingAudioOnly: Boolean = false
 
     private val storagePermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             val pending = pendingDownloadUrl
+            val pendingFormat = pendingFormatSelector
+            val pendingAudioOnlyValue = pendingAudioOnly
             pendingDownloadUrl = null
+            pendingFormatSelector = ""
+            pendingAudioOnly = false
             if (granted && !pending.isNullOrBlank()) {
-                DownloadService.start(this, pending)
+                DownloadService.start(this, pending, pendingFormat, pendingAudioOnlyValue)
             } else if (!granted) {
                 Toast.makeText(this, "需要存储权限才能写入系统下载目录", Toast.LENGTH_LONG).show()
             }
@@ -164,17 +171,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun startDownload(url: String) {
+    private fun startDownload(url: String, formatSelector: String, audioOnly: Boolean) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
             ContextCompat.checkSelfPermission(
                 this, Manifest.permission.WRITE_EXTERNAL_STORAGE
             ) != PackageManager.PERMISSION_GRANTED
         ) {
             pendingDownloadUrl = url
+            pendingFormatSelector = formatSelector
+            pendingAudioOnly = audioOnly
             storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             return
         }
-        DownloadService.start(this, url)
+        DownloadService.start(this, url, formatSelector, audioOnly)
     }
 
     private fun sharedText(intent: Intent?): String? = when (intent?.action) {
@@ -266,7 +275,7 @@ private val DogDarkColors = darkColorScheme(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
+private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean) -> Unit) {
     val context = LocalContext.current
     val preferences = remember { context.getSharedPreferences("dog_settings", Context.MODE_PRIVATE) }
     var themeMode by rememberSaveable {
@@ -292,6 +301,8 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
 
     var audioOnly by rememberSaveable { mutableStateOf(preferences.getBoolean("audio_only", false)) }
     var maxHeight by rememberSaveable { mutableStateOf(preferences.getInt("max_height", 0)) }
+    var selectedVideoFormatId by rememberSaveable { mutableStateOf("") }
+    var selectedAudioFormatId by rememberSaveable { mutableStateOf("") }
     var downloadSubtitles by rememberSaveable { mutableStateOf(preferences.getBoolean("download_subtitles", false)) }
     var downloadPlaylist by rememberSaveable { mutableStateOf(preferences.getBoolean("download_playlist", false)) }
     var videoContainer by rememberSaveable { mutableStateOf(preferences.getString("video_container", "mp4") ?: "mp4") }
@@ -324,6 +335,8 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
         if (!initialUrl.isNullOrBlank()) {
             url = initialUrl
             maxHeight = 0
+            selectedVideoFormatId = ""
+            selectedAudioFormatId = ""
             preferences.edit().putInt("max_height", 0).apply()
         }
     }
@@ -364,6 +377,9 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
             preferences.edit().putString("last_input_url", pastedUrl).putInt("max_height", 0).apply()
             preview = null
             previewError = ""
+            selectedVideoFormatId = ""
+            selectedAudioFormatId = ""
+            showFormatSheet = false
         } else {
             Toast.makeText(context, "剪贴板里没有找到视频链接", Toast.LENGTH_SHORT).show()
         }
@@ -379,13 +395,19 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
             previewLoading = true
             preview = null
             previewError = ""
+            selectedVideoFormatId = ""
+            selectedAudioFormatId = ""
             maxHeight = 0
             preferences.edit().putInt("max_height", 0).apply()
             VideoInfoService.inspect(context, value, object : VideoInfoService.Callback {
                 override fun onSuccess(result: VideoInfoService.Preview) {
                     previewLoading = false
                     if (url.trim() == value) {
-                        val actualDefaultHeight = result.qualities.firstOrNull()?.height ?: 0
+                        val defaultVideo = bestVideoFormat(result.formats)
+                        val defaultAudio = bestAudioFormat(result.formats)
+                        selectedVideoFormatId = defaultVideo?.formatId.orEmpty()
+                        selectedAudioFormatId = defaultAudio?.formatId.orEmpty()
+                        val actualDefaultHeight = defaultVideo?.height ?: 0
                         maxHeight = actualDefaultHeight
                         preferences.edit().putInt("max_height", actualDefaultHeight).apply()
                         preview = result
@@ -402,6 +424,15 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
 
     val startDownload: () -> Unit = {
         val value = url.trim()
+        val selectedVideo = preview?.formats?.firstOrNull { it.formatId == selectedVideoFormatId && it.hasVideo }
+        val selectedAudio = preview?.formats?.firstOrNull { it.formatId == selectedAudioFormatId && it.hasAudio }
+        val formatSelector = when {
+            audioOnly -> selectedAudio?.formatId.orEmpty()
+            selectedVideo == null -> ""
+            selectedVideo.hasAudio -> selectedVideo.formatId
+            selectedAudio != null -> selectedVideo.formatId + "+" + selectedAudio.formatId
+            else -> selectedVideo.formatId + "+bestaudio"
+        }
         if (engineUpdating || previewLoading) {
             Toast.makeText(context, "请等待当前操作完成", Toast.LENGTH_SHORT).show()
         } else if (!isHttpUrl(value)) {
@@ -415,10 +446,12 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                 preferences.edit().putInt("max_height", 0).apply()
             }
             showFormatSheet = false
-            onDownload(value)
+            onDownload(value, formatSelector, audioOnly)
             url = ""
             preview = null
             previewError = ""
+            selectedVideoFormatId = ""
+            selectedAudioFormatId = ""
             // Keep the user on the download form so progress remains visible,
             // matching bilibilidl's inline status/progress workflow.
             selectedTab = 0
