@@ -498,7 +498,9 @@ public class DownloadService extends Service {
         String normalized = detail.toLowerCase(java.util.Locale.ROOT);
         String friendly;
         String combinedDiagnostics = detail + "\n" + processOutputTail;
-        if (YouTubeRequestFallback.isJavaScriptRuntimeFailure(combinedDiagnostics) ||
+        if (NetworkErrorClassifier.isDnsResolutionFailure(combinedDiagnostics)) {
+            friendly = NetworkErrorClassifier.dnsFailureMessage();
+        } else if (YouTubeRequestFallback.isJavaScriptRuntimeFailure(combinedDiagnostics) ||
                 YouTubeRequestFallback.isRetryableFailure(combinedDiagnostics)) {
             friendly = YouTubeRequestFallback.userMessage(combinedDiagnostics);
         } else if (normalized.contains("unsupported url") ||
