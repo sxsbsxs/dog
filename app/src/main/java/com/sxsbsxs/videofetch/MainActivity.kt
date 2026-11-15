@@ -596,6 +596,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                     preferences.getString("last_input_url", "").orEmpty()
                 }
                 if (isHttpUrl(target)) {
+                    url = target
                     previewLoading = true
                     showFormatSheet = false
                     VideoInfoService.inspect(context, target, object : VideoInfoService.Callback {
@@ -1129,19 +1130,23 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                         shape = RoundedCornerShape(14.dp),
                                         color = MaterialTheme.colorScheme.errorContainer
                                     ) {
-                                        Text(
-                                            previewError,
-                                            modifier = Modifier.padding(13.dp),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onErrorContainer
-                                        )
-                                        if (previewError.contains("YouTube 拦截了当前会话")) {
-                                            OutlinedButton(
-                                                onClick = openLogin,
-                                                modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
-                                                shape = RoundedCornerShape(14.dp)
-                                            ) {
-                                                Text("登录 YouTube 并继续")
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth().padding(13.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text(
+                                                previewError,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onErrorContainer
+                                            )
+                                            if (previewError.contains("YouTube 拦截了当前会话")) {
+                                                OutlinedButton(
+                                                    onClick = openLogin,
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    shape = RoundedCornerShape(14.dp)
+                                                ) {
+                                                    Text("登录 YouTube 并继续")
+                                                }
                                             }
                                         }
                                     }
