@@ -896,64 +896,120 @@ private fun DogApp(initialUrl: String?, onDownload: (String) -> Unit) {
                     Column(
                         modifier = Modifier.fillMaxSize().padding(padding)
                             .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 17.dp, vertical = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(15.dp)
+                            .padding(horizontal = 20.dp, vertical = 18.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp)
                     ) {
-                        Text("我的", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text(
-                            "网站登录和应用设置都在这里管理。",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text("网站授权", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            if (hasCookieJar) "本机已保存 ${authorizedSites.size} 个网站授权"
-                            else "还没有添加网站授权",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        authorizedSites.forEach { site ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("我的", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                            Text(
+                                "授权、存储和应用偏好都在这里管理。",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(24.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(18.dp),
+                                verticalArrangement = Arrangement.spacedBy(11.dp)
                             ) {
-                                Text(site, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                                TextButton(onClick = {
-                                    SecureCookieStore.removeAuthorizedSite(context, site)
-                                    authorizedSites = SecureCookieStore.listAuthorizedSites(context)
-                                    hasCookieJar = SecureCookieStore.hasCookieJar(context)
-                                }) { Text("移除") }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("网站授权", modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                    Surface(
+                                        shape = RoundedCornerShape(100.dp),
+                                        color = if (hasCookieJar) MaterialTheme.colorScheme.secondaryContainer
+                                            else MaterialTheme.colorScheme.surfaceContainerHighest
+                                    ) {
+                                        Text(
+                                            if (hasCookieJar) "已授权" else "未授权",
+                                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 5.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (hasCookieJar) MaterialTheme.colorScheme.onSecondaryContainer
+                                                else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                Text(
+                                    if (hasCookieJar) "本机安全保存 " + authorizedSites.size + " 个网站授权，不需要手动复制 Cookie。"
+                                    else "可按需登录视频网站账号，以获取账号允许的画质。",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (authorizedSites.isNotEmpty()) {
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                                    authorizedSites.forEach { site ->
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(17.dp))
+                                            Spacer(Modifier.width(9.dp))
+                                            Text(site, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                                            TextButton(onClick = {
+                                                SecureCookieStore.removeAuthorizedSite(context, site)
+                                                authorizedSites = SecureCookieStore.listAuthorizedSites(context)
+                                                hasCookieJar = SecureCookieStore.hasCookieJar(context)
+                                            }) { Text("移除") }
+                                        }
+                                    }
+                                }
+                                Button(
+                                    onClick = openLogin,
+                                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                                    shape = RoundedCornerShape(16.dp)
+                                ) {
+                                    Text(if (hasCookieJar) "添加其他网站授权" else "登录网站账号")
+                                }
+                                if (hasCookieJar) {
+                                    TextButton(
+                                        onClick = {
+                                            SecureCookieStore.clear(context)
+                                            authorizedSites = emptyList()
+                                            hasCookieJar = false
+                                            Toast.makeText(context, "已清除全部本机授权", Toast.LENGTH_SHORT).show()
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) { Text("清除全部授权") }
+                                }
                             }
                         }
-                        Button(
-                            onClick = openLogin,
+
+                        Card(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp)
-                        ) { Text("添加网站登录授权") }
-                        if (hasCookieJar) {
-                            TextButton(
-                                onClick = {
-                                    SecureCookieStore.clear(context)
-                                    authorizedSites = emptyList()
-                                    hasCookieJar = false
-                                    Toast.makeText(context, "已清除全部本机授权", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) { Text("退出并清除全部授权") }
-                        }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        Text("应用", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        OutlinedButton(
-                            onClick = { settingsReturnTab = 2; selectedTab = 4 },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp)
+                            shape = RoundedCornerShape(24.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                         ) {
-                            Icon(Icons.Default.Tune, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("下载设置与解析引擎")
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(18.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("应用设置", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "外观、下载格式、字幕、下载目录和解析引擎",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                OutlinedButton(
+                                    onClick = { settingsReturnTab = 2; selectedTab = 4 },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp)
+                                ) {
+                                    Icon(Icons.Default.Tune, null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("打开全部设置")
+                                }
+                            }
                         }
+
                         Text(
-                            "Dog · 本地视频下载器",
+                            "Dog · 本地运行，不经过第三方下载服务器",
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1239,11 +1295,20 @@ private fun SettingsGroup(
     description: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
-        Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
+        }
     }
 }
 
@@ -1323,34 +1388,68 @@ private fun HistoryRow(
         item.statusLabel.contains("完成") -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(15.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Surface(
+                    modifier = Modifier.size(42.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Icon(
+                        Icons.Default.Folder,
+                        contentDescription = null,
+                        modifier = Modifier.padding(10.dp),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+                Text(
+                    item.fileName.ifBlank { item.message.ifBlank { "下载任务" } },
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Surface(shape = RoundedCornerShape(100.dp), color = statusColor.copy(alpha = 0.12f)) {
+                    Text(
+                        item.statusLabel,
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = statusColor
+                    )
+                }
+            }
             Text(
-                item.fileName.ifBlank { item.message.ifBlank { "下载任务" } },
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                listOf(item.source, item.time).filter { it.isNotBlank() }.joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Text(item.statusLabel, style = MaterialTheme.typography.labelSmall, color = statusColor)
-        }
-        Text(
-            listOf(item.source, item.time).filter { it.isNotBlank() }.joinToString(" · "),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        if (item.message.isNotBlank() && item.fileName.isNotBlank()) {
-            Text(item.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-        if (item.location.startsWith("content://")) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onOpen) { Text("打开文件") }
-                TextButton(onClick = onShare) { Text("分享") }
+            if (item.message.isNotBlank() && item.fileName.isNotBlank()) {
+                Text(
+                    item.message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (item.location.startsWith("content://")) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onOpen) { Text("打开文件") }
+                    TextButton(onClick = onShare) { Text("分享") }
+                }
             }
         }
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 }
 
 @Composable
