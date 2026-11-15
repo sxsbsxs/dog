@@ -127,11 +127,27 @@ public final class YouTubeRequestFallback {
                 normalized.contains("error 403");
     }
 
+    public static boolean isTransientNetworkFailure(String value) {
+        if (value == null || value.isEmpty()) return false;
+        String normalized = value.toLowerCase(Locale.ROOT);
+        return normalized.contains("connection reset by peer") ||
+                normalized.contains("connection aborted") ||
+                normalized.contains("remote end closed connection") ||
+                normalized.contains("unexpected eof while reading") ||
+                normalized.contains("ssl: eof occurred") ||
+                normalized.contains("read timed out") ||
+                normalized.contains("connect timed out") ||
+                normalized.contains("temporary failure in name resolution") ||
+                normalized.contains("network is unreachable") ||
+                normalized.contains("transporterror");
+    }
+
     public static boolean isRetryableFailure(String value) {
         if (value == null || value.isEmpty()) return false;
         String normalized = value.toLowerCase(Locale.ROOT);
         return isBotChallenge(value) || isPoTokenFailure(value) ||
                 isHttp403(value) || isEmbeddedConfigFailure(value) ||
+                isTransientNetworkFailure(value) ||
                 normalized.contains("playability status: login_required") ||
                 normalized.contains("login_required");
     }
@@ -186,6 +202,9 @@ public final class YouTubeRequestFallback {
         }
         if (isHttp403(diagnostics)) {
             return "YouTube 返回 HTTP 403。可能是媒体请求缺少 PO Token、播放地址过期，或网络出口受到限制；反复登录不一定能解决。";
+        }
+        if (isTransientNetworkFailure(diagnostics)) {
+            return "YouTube 连接被网络对端重置或超时。应用会自动尝试其他客户端；若仍失败，请更换网络或 VPN 出口后再试。";
         }
         return userMessage();
     }
