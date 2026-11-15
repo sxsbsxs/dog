@@ -145,10 +145,11 @@ public final class VideoInfoService {
             try {
                 YtDlpEngine.initialize(app);
                 cookieFile = SecureCookieStore.createTemporaryCookieFile(app);
-                // Avoid yt-dlp's cookie-sensitive default client bundle: its
-                // web_embedded member can fail on missing INNERTUBE_CONTEXT.
-                // Start with one explicit client, then fall back to Safari HLS.
-                String primaryClient = YouTubeRequestFallback.isYoutubeUrl(targetUrl) ? "tv" : null;
+                // Use the current yt-dlp client policy (tv_samsung first for
+                // authenticated accounts; visionos available for guests), while
+                // excluding web_embedded's experimental PO-token path.
+                String primaryClient = YouTubeRequestFallback.isYoutubeUrl(targetUrl)
+                        ? "default_without_embedded" : null;
                 YoutubeDLRequest request = createInfoRequest(app, targetUrl, cookieFile, primaryClient);
 
                 // Use the raw JSON output so every entry in yt-dlp's formats[]
@@ -289,7 +290,7 @@ public final class VideoInfoService {
         if (cookieFile != null) {
             request.addOption("--cookies", cookieFile.getAbsolutePath());
         }
-        if ("tv".equals(playerClient)) {
+        if ("default_without_embedded".equals(playerClient)) {
             YouTubeRequestFallback.applyFallback(request);
         } else if ("web_safari".equals(playerClient)) {
             YouTubeRequestFallback.applyHlsFallback(request);
@@ -307,24 +308,30 @@ public final class VideoInfoService {
                 throw firstFailure;
             }
 
-            // The primary attempt already used TV for YouTube. Continue directly
-            // to isolated Safari HLS instead of retrying TV a second time.
-            YoutubeDLRequest safariRequest = createInfoRequest(app, url, cookieFile, "web_safari");
+            Exception previousFailure = firstFailure;
+            // If account cookies were sent, retry with a clean guest profile.
+            // yt-dlp then selects tv_samsung + visionos + web rather than the
+            // authenticated client list. This is especially important when the
+            // account session is stale or the signed-in client is challenged.
+            if (cookieFile != null) {
+                YoutubeDLRequest guestRequest =
+                        createInfoRequest(app, url, null, "default_without_embedded");
+                try {
+                    return YoutubeDL.getInstance().execute(guestRequest, null, false, null);
+                } catch (Exception guestFailure) {
+                    guestFailure.addSuppressed(previousFailure);
+                    previousFailure = guestFailure;
+                }
+            }
+
+            // Final, independent HLS route. The default guest policy is tried
+            // first because web_safari may itself be subject to PO-token tests.
+            YoutubeDLRequest safariRequest = createInfoRequest(app, url, null, "web_safari");
             try {
                 return YoutubeDL.getInstance().execute(safariRequest, null, false, null);
             } catch (Exception safariFailure) {
-                // Retry public Safari HLS without account cookies in case
-                // the saved YouTube session is stale or rejected.
-                YoutubeDLRequest guestSafariRequest =
-                        createInfoRequest(app, url, null, "web_safari");
-                try {
-                    return YoutubeDL.getInstance().execute(
-                            guestSafariRequest, null, false, null);
-                } catch (Exception guestFailure) {
-                    guestFailure.addSuppressed(safariFailure);
-                    guestFailure.addSuppressed(firstFailure);
-                    throw guestFailure;
-                }
+                safariFailure.addSuppressed(previousFailure);
+                throw safariFailure;
             }
         }
     }
