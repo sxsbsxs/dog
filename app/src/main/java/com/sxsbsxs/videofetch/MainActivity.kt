@@ -804,12 +804,13 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.surface,
                     topBar = {
-                    if (selectedTab != 0) {
+                    if (selectedTab != 0 && selectedTab != 6) {
                         val pageTitle = when (selectedTab) {
                             1 -> "下载记录"
                             2 -> "网站授权"
                             3 -> "任务列表"
                             5 -> "下载队列"
+                            6 -> "播放器"
                             else -> when (settingsSection) {
                                 "appearance" -> "外观"
                                 "format" -> "下载格式"
@@ -1634,6 +1635,14 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                             items(historyItems) { item ->
                                 HistoryRow(
                                     item = item,
+                                    onPlay = {
+                                        if (item.location.isNotBlank()) {
+                                            playingHistoryItem = item
+                                            selectedTab = 6
+                                        } else {
+                                            Toast.makeText(context, "该记录没有可播放的本地文件", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
                                     onOpen = {
                                         runCatching {
                                             val uri = Uri.parse(item.location)
@@ -1664,6 +1673,23 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                 }
 
 
+                6 -> {
+                    val item = playingHistoryItem
+                    if (item == null || item.location.isBlank()) {
+                        EmptyState(
+                            icon = Icons.Default.PlayArrow,
+                            title = "没有可播放的文件",
+                            description = "请从下载记录中选择一个已完成的视频或音频。",
+                            action = "返回下载记录",
+                            onAction = { selectedTab = 1 }
+                        )
+                    } else {
+                        MediaPlaybackScreen(
+                            item = item,
+                            onBack = { selectedTab = 1 }
+                        )
+                    }
+                }
                 2 -> {
                     Column(
                         modifier = Modifier.fillMaxSize().padding(padding)
@@ -3085,9 +3111,143 @@ private fun SettingsToggleRow(
     }
 }
 
+private fun historyLocationUri(location: String): Uri {
+    return if (location.startsWith("content://") || location.startsWith("file://")) {
+        Uri.parse(location)
+    } else {
+        Uri.fromFile(File(location))
+    }
+}
+
+private fun isAudioHistoryItem(item: DownloadHistoryItem): Boolean {
+    val extension = item.fileName.substringAfterLast('.', "").lowercase(Locale.ROOT)
+    return item.formatLabel.contains("音频") ||
+        extension in setOf("mp3", "m4a", "aac", "opus", "flac", "wav", "ogg")
+}
+
+@OptIn(UnstableApi::class)
+@Composable
+private fun MediaPlaybackScreen(
+    item: DownloadHistoryItem,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val mediaUri = remember(item.location) { historyLocationUri(item.location) }
+    val player = remember(mediaUri) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(mediaUri))
+            prepare()
+            playWhenReady = true
+        }
+    }
+    DisposableEffect(player) {
+        onDispose { player.release() }
+    }
+    val audioOnly = remember(item) { isAudioHistoryItem(item) }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "返回下载记录")
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    if (audioOnly) "音频播放" else "视频播放",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    item.fileName.ifBlank { "本地媒体" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+        if (audioOnly) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Surface(
+                    modifier = Modifier.size(220.dp),
+                    shape = RoundedCornerShape(48.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Icon(
+                        Icons.Default.MusicNote,
+                        contentDescription = null,
+                        modifier = Modifier.padding(58.dp),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+                Spacer(Modifier.height(28.dp))
+                Text(
+                    item.fileName.ifBlank { "正在播放音频" },
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    item.source,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(30.dp))
+                AndroidView(
+                    factory = { viewContext ->
+                        PlayerControlView(viewContext).apply {
+                            player = this@MediaPlaybackScreen.run { player }
+                            setShowTimeoutMs(0)
+                        }
+                    },
+                    update = { it.player = player },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        } else {
+            AndroidView(
+                factory = { viewContext ->
+                    PlayerView(viewContext).apply {
+                        player = this@MediaPlaybackScreen.run { player }
+                        useController = true
+                        setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                    }
+                },
+                update = { it.player = player },
+                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                    .background(Color.Black)
+            )
+            Text(
+                item.fileName,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                "支持播放本地视频文件，控制栏可暂停、拖动进度和调整播放位置。",
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
 @Composable
 private fun HistoryRow(
     item: DownloadHistoryItem,
+    onPlay: () -> Unit,
     onOpen: () -> Unit,
     onShare: () -> Unit
 ) {
@@ -3167,6 +3327,15 @@ private fun HistoryRow(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
+                }
+            }
+            if (item.location.isNotBlank()) {
+                IconButton(onClick = onPlay) {
+                    Icon(
+                        Icons.Default.PlayArrow,
+                        contentDescription = "应用内播放",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
             if (item.location.startsWith("content://")) {
