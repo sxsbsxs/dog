@@ -156,7 +156,7 @@ public class DownloadService extends Service {
             if (running.get()) {
                 pendingTasks.offer(task);
                 int count = pendingTasks.size();
-                DownloadState.INSTANCE.queued(count);
+                DownloadState.INSTANCE.queued(count, pendingTaskLabels());
                 NotificationManager manager = getSystemService(NotificationManager.class);
                 if (manager != null) {
                     manager.notify(NOTIFICATION_ID,
@@ -172,10 +172,24 @@ public class DownloadService extends Service {
                     ? "正在准备下载" : "正在准备下载 · " + task.formatLabel;
             startForeground(NOTIFICATION_ID, buildNotification(preparing, 0, true));
             DownloadState.INSTANCE.started(
-                    pendingTasks.size(), task.formatLabel, task.url, task.formatSelector, task.audioOnly);
+                    pendingTasks.size(), task.formatLabel, task.url, task.formatSelector,
+                    task.audioOnly, pendingTaskLabels());
             downloadFuture = executor.submit(() -> runDownload(task, generation));
         }
         return START_NOT_STICKY;
+    }
+
+    /** Returns a stable display-only snapshot; raw source URLs are never exposed in task UI. */
+    private List<String> pendingTaskLabels() {
+        List<String> labels = new ArrayList<>();
+        for (DownloadTask task : pendingTasks) {
+            String label = task.formatLabel;
+            if (label == null || label.trim().isEmpty()) {
+                label = task.audioOnly ? "仅音频 · 自动选择最佳" : "视频 · 自动选择最佳";
+            }
+            labels.add(label);
+        }
+        return labels;
     }
 
     private boolean isHttpUrl(String value) {
@@ -370,7 +384,7 @@ public class DownloadService extends Service {
                         int remaining = pendingTasks.size();
                         DownloadState.INSTANCE.started(
                                 remaining, nextTask.formatLabel, nextTask.url,
-                                nextTask.formatSelector, nextTask.audioOnly);
+                                nextTask.formatSelector, nextTask.audioOnly, pendingTaskLabels());
                         NotificationManager manager = getSystemService(NotificationManager.class);
                         if (manager != null) {
                             manager.notify(NOTIFICATION_ID,
