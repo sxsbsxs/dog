@@ -151,6 +151,10 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.documentfile.provider.DocumentFile
 import androidx.media3.common.MediaItem
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerControlView
@@ -420,6 +424,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     var authorizedSites by remember { mutableStateOf(SecureCookieStore.listAuthorizedSites(context)) }
     var historyJson by remember { mutableStateOf(DownloadHistoryStore.read(context)) }
     var playingHistoryItem by remember { mutableStateOf<DownloadHistoryItem?>(null) }
+    var playerReturnTab by rememberSaveable { mutableStateOf(1) }
     var mediaFilter by rememberSaveable { mutableStateOf("all") }
     var downloadTreeUri by rememberSaveable {
         mutableStateOf(preferences.getString("download_tree_uri", "").orEmpty())
@@ -474,6 +479,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                     message = "",
                     formatLabel = if (audio) "音频" else "视频"
                 )
+                playerReturnTab = 7
                 selectedTab = 6
             }.onFailure {
                 Toast.makeText(context, "无法打开所选媒体文件", Toast.LENGTH_LONG).show()
@@ -485,7 +491,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     var historyFilter by rememberSaveable { mutableStateOf("all") }
     var showQueueMenu by rememberSaveable { mutableStateOf(false) }
     val navigateFromDrawer: (Int) -> Unit = { destination ->
-        if (destination == 1) historyJson = DownloadHistoryStore.read(context)
+        if (destination == 1 || destination == 7) historyJson = DownloadHistoryStore.read(context)
         if (destination == 2) {
             authorizedSites = SecureCookieStore.listAuthorizedSites(context)
             hasCookieJar = SecureCookieStore.hasCookieJar(context)
@@ -1692,6 +1698,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                     onPlay = {
                                         if (item.location.isNotBlank()) {
                                             playingHistoryItem = item
+                                            playerReturnTab = 1
                                             selectedTab = 6
                                         } else {
                                             Toast.makeText(context, "该记录没有可播放的本地文件", Toast.LENGTH_SHORT).show()
@@ -1740,7 +1747,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                     } else {
                         MediaPlaybackScreen(
                             item = item,
-                            onBack = { selectedTab = 1 }
+                            onBack = { selectedTab = playerReturnTab }
                         )
                     }
                 }
@@ -1813,6 +1820,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                         item = item,
                                         onPlay = {
                                             playingHistoryItem = item
+                                            playerReturnTab = 7
                                             selectedTab = 6
                                         },
                                         onOpen = {
@@ -2209,6 +2217,13 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                         if (downloadTreeUri.isNotBlank()) {
                                             TextButton(
                                                 onClick = {
+                                                    runCatching {
+                                                        context.contentResolver.releasePersistableUriPermission(
+                                                            Uri.parse(downloadTreeUri),
+                                                            Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                                                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                                                        )
+                                                    }
                                                     preferences.edit().remove("download_tree_uri").apply()
                                                     downloadTreeUri = ""
                                                     Toast.makeText(
@@ -3289,8 +3304,17 @@ private fun MediaPlaybackScreen(
 ) {
     val context = LocalContext.current
     val mediaUri = remember(item.location) { historyLocationUri(item.location) }
+    val playbackError = remember(mediaUri) { mutableStateOf("") }
     val player = remember(mediaUri) {
         ExoPlayer.Builder(context).build().apply {
+            val audioAttributes = AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(
+                    if (isAudioHistoryItem(item)) C.AUDIO_CONTENT_TYPE_MUSIC
+                    else C.AUDIO_CONTENT_TYPE_MOVIE
+                )
+                .build()
+            setAudioAttributes(audioAttributes, true)
             setMediaItem(MediaItem.fromUri(mediaUri))
             prepare()
             playWhenReady = true
@@ -3298,7 +3322,17 @@ private fun MediaPlaybackScreen(
     }
     val exoPlayer = player
     DisposableEffect(player) {
-        onDispose { player.release() }
+        val listener = object : Player.Listener {
+            override fun onPlayerError(error: PlaybackException) {
+                playbackError.value = error.localizedMessage
+                    ?: error.errorCodeName
+            }
+        }
+        player.addListener(listener)
+        onDispose {
+            player.removeListener(listener)
+            player.release()
+        }
     }
     val audioOnly = remember(item) { isAudioHistoryItem(item) }
 
@@ -3371,6 +3405,20 @@ private fun MediaPlaybackScreen(
                     update = { it.player = exoPlayer },
                     modifier = Modifier.fillMaxWidth()
                 )
+                if (playbackError.value.isNotBlank()) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.errorContainer
+                    ) {
+                        Text(
+                            "播放失败：${playbackError.value}",
+                            modifier = Modifier.padding(14.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
             }
         } else {
             AndroidView(
@@ -3397,6 +3445,20 @@ private fun MediaPlaybackScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (playbackError.value.isNotBlank()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.errorContainer
+                ) {
+                    Text(
+                        "播放失败：${playbackError.value}",
+                        modifier = Modifier.padding(14.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
         }
     }
 }
