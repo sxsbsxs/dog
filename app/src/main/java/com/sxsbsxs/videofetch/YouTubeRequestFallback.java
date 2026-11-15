@@ -38,11 +38,21 @@ public final class YouTubeRequestFallback {
     public static void applyCommonOptions(YoutubeDLRequest request) {
         request.addOption("--remote-components", EJS_REMOTE_COMPONENT);
         request.addOption("--verbose");
+        // Retry transient YouTube webpage/player API connection resets. This
+        // does not override an explicit bot challenge or an account restriction.
+        request.addOption("--extractor-retries", "5");
     }
 
-    /** A no-PO-Token client that can still expose account-aware formats. */
+    /**
+     * Use yt-dlp's current client policy, but exclude web_embedded. In the
+     * 2026-11-14 upstream policy, authenticated requests prefer tv_samsung,
+     * while guest requests can fall back to visionos. web_embedded is
+     * explicitly excluded because YouTube is testing video-bound PO tokens
+     * for that client and older ytcfg responses can also be incomplete.
+     */
     public static void applyFallback(YoutubeDLRequest request) {
-        applyClient(request, "tv");
+        request.addOption("--extractor-args",
+                "youtube:player_client=default,-web_embedded");
     }
 
     /** Safari's HLS formats can be a useful final route when GVS PO Tokens are unavailable. */
