@@ -441,10 +441,23 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     ) { pickedUri ->
         if (pickedUri != null) {
             runCatching {
+                val pickedFolder = DocumentFile.fromTreeUri(context, pickedUri)
+                if (pickedFolder == null || !pickedFolder.isDirectory || !pickedFolder.canWrite()) {
+                    throw IllegalArgumentException("所选文件夹不可写，请重新选择")
+                }
                 context.contentResolver.takePersistableUriPermission(
                     pickedUri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 )
+                val oldTree = downloadTreeUri
+                if (oldTree.isNotBlank() && oldTree != pickedUri.toString()) {
+                    runCatching {
+                        context.contentResolver.releasePersistableUriPermission(
+                            Uri.parse(oldTree),
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                        )
+                    }
+                }
                 preferences.edit().putString("download_tree_uri", pickedUri.toString()).apply()
                 downloadTreeUri = pickedUri.toString()
                 Toast.makeText(context, "下载目录已更新", Toast.LENGTH_SHORT).show()
@@ -459,9 +472,14 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     ) { pickedUri ->
         if (pickedUri != null) {
             runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    pickedUri, Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
+                // OpenDocument already grants temporary read access to this Activity.
+                // Persist it when supported, but do not block immediate playback if a
+                // third-party document provider refuses a persistable permission.
+                runCatching {
+                    context.contentResolver.takePersistableUriPermission(
+                        pickedUri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                }
                 val displayName = context.contentResolver.query(
                     pickedUri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null
                 )?.use { cursor ->
