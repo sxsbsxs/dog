@@ -377,12 +377,26 @@ public final class VideoInfoService {
 
         int highestHeight = qualities.get(0).height;
         if (niconico && highestHeight <= 720) {
+            if ("v3-dms".equals(niconicoApiMode) || "v3".equals(niconicoApiMode)) {
+                return "本次通过 Niconico 标准 v3 登录接口获取到最高 " + highestHeight +
+                        "p。标准 v3 需要 user_session，说明本次解析走的是登录接口，不是游客接口。" +
+                        "Niconico 官方规则：普通会员最高 720p，Premium 最高 1080p。" +
+                        "如果你确认账号是 Premium，而且同一账号在 Niconico 官网能播放该视频的 1080p，" +
+                        "那么当前 DMS 返回的数据与官网不一致，问题在接口/会话取流，不是画质选择界面把 1080p 隐藏了。";
+            }
+            if ("v3_guest-dms".equals(niconicoApiMode) || "v3_guest".equals(niconicoApiMode)) {
+                return "本次最终使用了 Niconico 游客接口，实际只返回最高 " + highestHeight +
+                        "p。虽然应用可能保存了 Cookie，但标准 v3 登录接口没有成功提供可用流，" +
+                        "所以这次结果不能算已使用登录画质权限。请重新授权并确认账号已登录。" +
+                        "普通会员官方最高 720p，Premium 最高 1080p。";
+            }
             String account = hasNiconicoSession
-                    ? "已检测到本机 user_session Cookie"
-                    : "没有检测到本机 user_session Cookie";
+                    ? "本机 Cookie 文件中检测到了 user_session"
+                    : "本机 Cookie 文件中没有检测到 user_session";
             return "本次通过 " + niconicoRouteLabel(niconicoApiMode) +
                     " 获取到最高 " + highestHeight + "p（" + account +
-                    "）。Niconico 官方规则是普通/未登录账号最高 720p，Premium 最高 1080p；视频本身也必须提供对应规格。若其他下载站在你未登录的情况下显示 1080p，可能是它的服务器使用了自己的账号会话；仅凭页面上的画质标签还不能确认实际下载文件。";
+                    "）。Niconico 官方规则：普通会员最高 720p，Premium 最高 1080p。" +
+                    "如果你是 Premium 且官网同一视频可播放 1080p，说明当前解析路径没有拿到官网可用的完整流。";
         }
         if (niconico && highestHeight > 720 && !hasNiconicoSession) {
             return "匿名页面解析实际返回了 " + highestHeight +
