@@ -156,6 +156,7 @@ import java.util.Locale
 import com.sxsbsxs.videofetch.ui.component.SealSettingItem
 import com.sxsbsxs.videofetch.ui.component.SelectionGroupItem
 import com.sxsbsxs.videofetch.ui.component.SelectionGroupRow
+import com.sxsbsxs.videofetch.ui.svg.DynamicColorImageVectors
 import com.sxsbsxs.videofetch.ui.svg.download
 import com.sxsbsxs.videofetch.ui.svg.videoSteaming
 
