@@ -192,13 +192,13 @@ class MainActivity : ComponentActivity() {
     private fun showPreviousCrashReport() {
         val report = CrashReporter.readPreviousCrash(this)
         val visibleReport = if (report.length > 10000) {
-            report.take(10000) + "\\n\\n[日志过长，已截断显示]"
+            report.take(10000) + "\\n[日志过长，已截断显示]"
         } else report
 
         AlertDialog.Builder(this)
             .setTitle("video-dl 上次启动异常")
             .setMessage(
-                "检测到应用上次意外退出。请把下面的日志分享出来，我就能按真实异常定位。\\n\\n" +
+                "检测到应用上次意外退出。请把下面的日志分享出来，我就能按真实异常定位。\\n" +
                     visibleReport
             )
             .setPositiveButton("分享崩溃日志") { _, _ ->
