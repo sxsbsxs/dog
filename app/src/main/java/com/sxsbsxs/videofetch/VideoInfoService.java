@@ -125,6 +125,12 @@ public final class VideoInfoService {
     }
 
     public static void inspect(Context context, String url, Callback callback) {
+        final String targetUrl = VideoUrlNormalizer.normalize(url);
+        if (targetUrl == null) {
+            MAIN_HANDLER.post(() -> callback.onError(
+                    "链接格式不正确，请粘贴完整视频链接或 11 位 YouTube 视频 ID"));
+            return;
+        }
         Context app = context.getApplicationContext();
         ExecutorService executor = Executors.newSingleThreadExecutor();
         ACTIVE_INSPECTIONS.incrementAndGet();
@@ -133,12 +139,12 @@ public final class VideoInfoService {
             try {
                 YtDlpEngine.initialize(app);
                 cookieFile = SecureCookieStore.createTemporaryCookieFile(app);
-                YoutubeDLRequest request = createInfoRequest(app, url, cookieFile, null);
+                YoutubeDLRequest request = createInfoRequest(app, targetUrl, cookieFile, null);
 
                 // Use the raw JSON output so every entry in yt-dlp's formats[]
                 // is inspected, rather than trusting a partially mapped model.
                 YoutubeDLResponse response = executeWithYouTubeFallback(
-                        app, url, cookieFile, request);
+                        app, targetUrl, cookieFile, request);
                 String rawOutput = response.getOut();
                 int jsonStart = rawOutput == null ? -1 : rawOutput.indexOf('{');
                 String screenMessages = jsonStart > 0 ? rawOutput.substring(0, jsonStart) : "";
@@ -164,9 +170,9 @@ public final class VideoInfoService {
                 List<QualityOption> qualities = buildQualityOptions(rawFormats);
                 List<FormatOption> formats = buildFormatOptions(rawFormats);
                 int videoFormatCount = countVideoFormats(rawFormats);
-                boolean bilibili = isBilibiliUrl(url);
+                boolean bilibili = isBilibiliUrl(targetUrl);
                 boolean hasSessData = hasCookie(cookieFile, "SESSDATA");
-                boolean niconico = isNiconicoUrl(url);
+                boolean niconico = isNiconicoUrl(targetUrl);
                 // Match yt-dlp's NiconicoBaseIE.is_logged_in exactly:
                 // the extractor checks user_session on www.nicovideo.jp.
                 boolean hasNiconicoSession = hasCookieForHost(
@@ -192,7 +198,7 @@ public final class VideoInfoService {
                 if (NetworkErrorClassifier.isDnsResolutionFailure(fullFailureDetails)) {
                     message = NetworkErrorClassifier.dnsFailureMessage();
                 } else if (YouTubeRequestFallback.isJavaScriptRuntimeFailure(fullFailureDetails) ||
-                        YouTubeRequestFallback.shouldRetry(url, failure, fullFailureDetails)) {
+                        YouTubeRequestFallback.shouldRetry(targetUrl, failure, fullFailureDetails)) {
                     message = YouTubeRequestFallback.userMessage(fullFailureDetails);
                 } else {
                     message = failure.getMessage();
