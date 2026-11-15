@@ -38,6 +38,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.TopAppBar
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -714,32 +715,43 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.surface,
                 topBar = {
-                    TopAppBar(
-                        navigationIcon = {
-                            if (selectedTab == 4) {
-                                IconButton(onClick = { selectedTab = settingsReturnTab }) {
-                                    Icon(Icons.Default.ArrowBack, contentDescription = "返回")
-                                }
-                            } else {
-                                IconButton(onClick = { drawerScope.launch { drawerState.open() } }) {
-                                    Icon(Icons.Default.Menu, contentDescription = "打开导航菜单")
-                                }
+                    val pageTitle = when (selectedTab) {
+                        0 -> "下载队列"
+                        1 -> "下载记录"
+                        2 -> "网站授权"
+                        3 -> "任务列表"
+                        else -> "设置"
+                    }
+                    val navigation: @Composable () -> Unit = {
+                        if (selectedTab == 4) {
+                            IconButton(onClick = { selectedTab = settingsReturnTab }) {
+                                Icon(Icons.Default.ArrowBack, contentDescription = "返回")
                             }
-                        },
-                        title = {
-                            Text(
-                                when (selectedTab) {
-                                    0 -> "下载队列"
-                                    1 -> "下载记录"
-                                    2 -> "网站授权"
-                                    3 -> "任务列表"
-                                    else -> "设置"
-                                },
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Medium
-                            )
+                        } else {
+                            IconButton(onClick = { drawerScope.launch { drawerState.open() } }) {
+                                Icon(Icons.Default.Menu, contentDescription = "打开导航菜单")
+                            }
                         }
-                    )
+                    }
+                    if (selectedTab == 1 || selectedTab == 2 || selectedTab == 4) {
+                        LargeTopAppBar(
+                            navigationIcon = navigation,
+                            title = {
+                                Text(pageTitle, fontWeight = FontWeight.Medium)
+                            }
+                        )
+                    } else {
+                        TopAppBar(
+                            navigationIcon = navigation,
+                            title = {
+                                Text(
+                                    pageTitle,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        )
+                    }
                 },
                 floatingActionButton = {
                     if (selectedTab == 0) {
@@ -1067,13 +1079,14 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                 3 -> {
                     Column(
                         modifier = Modifier.fillMaxSize().padding(padding)
-                            .verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 20.dp),
+                            .verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(18.dp)
                     ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("下载任务", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                            Text("查看当前进度和等待中的下载。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                        Text(
+                            "查看当前进度和等待中的下载",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                         if (download.running) {
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1310,15 +1323,16 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                         verticalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
                         item {
-                            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    Text("已下载文件", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                                    Text(
-                                        "显示 " + historyItems.size + " / " + allHistoryItems.size + " 条记录",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "显示 " + historyItems.size + " / " + allHistoryItems.size + " 条记录",
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                                 TextButton(
                                     onClick = {
                                         DownloadHistoryStore.clear(context)
@@ -1415,14 +1429,11 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                             .padding(horizontal = 20.dp, vertical = 18.dp),
                         verticalArrangement = Arrangement.spacedBy(18.dp)
                     ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("我的", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                            Text(
-                                "授权、存储和应用偏好都在这里管理。",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        Text(
+                            "管理网站登录和本机授权",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
 
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -1523,7 +1534,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                         }
 
                         Text(
-                            "VideoFetch · 本地运行，不经过第三方下载服务器",
+                            "video-dl · 本地运行，不经过第三方下载服务器",
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center,
                             style = MaterialTheme.typography.labelSmall,
@@ -1536,13 +1547,14 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                     Column(
                         modifier = Modifier.fillMaxSize().padding(padding)
                             .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 22.dp, vertical = 18.dp),
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("设置", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                            Text("按你的使用习惯调整下载方式。修改会自动保存。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                        Text(
+                            "按使用习惯调整下载方式，修改会自动保存",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
 
                         SettingsGroup("外观", "应用的显示方式") {
                             ChoiceChipRows(
@@ -1659,7 +1671,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                     Text("正在更新…")
                                 } else Text("检查并更新 yt-dlp")
                             }
-                            Text("这只更新本机的网站解析脚本，不会更新 VideoFetch 应用。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("这只更新本机的网站解析脚本，不会更新 video-dl 应用。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Text("video-dl · 本地视频下载器", modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
