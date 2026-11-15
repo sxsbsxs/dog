@@ -5,12 +5,12 @@ plugins {
 }
 
 android {
-    namespace = "com.sxsbsxs.dog"
+    namespace = "com.sxsbsxs.videofetch"
     compileSdk = 35
     ndkVersion = "27.0.12077973"
 
     defaultConfig {
-        applicationId = "com.sxsbsxs.dog"
+        applicationId = "com.sxsbsxs.videofetch"
         minSdk = 24
         targetSdk = 35
         versionCode = 1

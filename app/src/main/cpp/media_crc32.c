@@ -13,7 +13,7 @@ static void build_crc32_table(uint32_t table[256]) {
     }
 }
 
-int dog_crc32_file(const char* path, uint64_t* byte_count, uint32_t* checksum) {
+int videofetch_crc32_file(const char* path, uint64_t* byte_count, uint32_t* checksum) {
     if (path == NULL || byte_count == NULL || checksum == NULL) {
         return -1;
     }

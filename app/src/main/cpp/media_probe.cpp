@@ -119,7 +119,7 @@ std::string detect_mime(const std::string& path) {
 
 extern "C"
 JNIEXPORT jstring JNICALL
-Java_com_sxsbsxs_dog_NativeMediaProbe_detectMimeType(
+Java_com_sxsbsxs_videofetch_NativeMediaProbe_detectMimeType(
         JNIEnv* env, jclass, jstring absolute_path) {
     if (absolute_path == nullptr) return env->NewStringUTF("");
 
@@ -132,7 +132,7 @@ Java_com_sxsbsxs_dog_NativeMediaProbe_detectMimeType(
 
 extern "C"
 JNIEXPORT jstring JNICALL
-Java_com_sxsbsxs_dog_NativeMediaProbe_calculateFingerprint(
+Java_com_sxsbsxs_videofetch_NativeMediaProbe_calculateFingerprint(
         JNIEnv* env, jclass, jstring absolute_path) {
     if (absolute_path == nullptr) return env->NewStringUTF("");
 
@@ -141,7 +141,7 @@ Java_com_sxsbsxs_dog_NativeMediaProbe_calculateFingerprint(
 
     std::uint64_t byte_count = 0;
     std::uint32_t checksum = 0;
-    const int result = dog_crc32_file(path.c_str(), &byte_count, &checksum);
+    const int result = videofetch_crc32_file(path.c_str(), &byte_count, &checksum);
     if (result != 0) return env->NewStringUTF("");
 
     std::ostringstream fingerprint;

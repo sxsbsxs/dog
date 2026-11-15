@@ -29,8 +29,8 @@ jobs:
         run: python tools/test_native_crc32.py
       - name: Check bundled yt-dlp plugin syntax
         env:
-          PYTHONPYCACHEPREFIX: /tmp/dog-python-cache
-        run: python -m py_compile app/src/main/assets/yt-dlp-plugins/dog/yt_dlp_plugins/extractor/niconico.py
+          PYTHONPYCACHEPREFIX: /tmp/videofetch-python-cache
+        run: python -m py_compile app/src/main/assets/yt-dlp-plugins/videofetch/yt_dlp_plugins/extractor/niconico.py
       - name: Test Niconico V4/DMS extraction contract
         run: python tools/test_niconico_v4_extractor.py
       - name: Build debug APK
@@ -44,17 +44,17 @@ jobs:
           done
       - uses: actions/upload-artifact@v4
         with:
-          name: dog-debug-arm64-v8a
+          name: videofetch-debug-arm64-v8a
           path: app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: dog-debug-armeabi-v7a
+          name: videofetch-debug-armeabi-v7a
           path: app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: dog-debug-x86
+          name: videofetch-debug-x86
           path: app/build/outputs/apk/debug/app-x86-debug.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: dog-debug-x86_64
+          name: videofetch-debug-x86_64
           path: app/build/outputs/apk/debug/app-x86_64-debug.apk
