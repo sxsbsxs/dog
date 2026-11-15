@@ -166,8 +166,9 @@ public final class VideoInfoService {
                 boolean bilibili = isBilibiliUrl(url);
                 boolean hasSessData = hasCookie(cookieFile, "SESSDATA");
                 boolean niconico = isNiconicoUrl(url);
-                boolean hasNiconicoSession = hasCookie(cookieFile, "user_session") ||
-                        hasCookie(cookieFile, "user_session_secure");
+                // Match yt-dlp's NiconicoBaseIE.is_logged_in exactly:
+                // the extractor checks user_session on www.nicovideo.jp.
+                boolean hasNiconicoSession = hasCookie(cookieFile, "user_session");
                 String diagnostic = buildQualityNotice(
                         bilibili, hasSessData, niconico, hasNiconicoSession,
                         qualities, videoFormatCount, extractionDiagnostics);
