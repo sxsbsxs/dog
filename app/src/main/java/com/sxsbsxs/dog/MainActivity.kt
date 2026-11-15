@@ -81,6 +81,9 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -258,30 +261,30 @@ private fun isHttpUrl(value: String): Boolean =
         value.startsWith("http://", ignoreCase = true)
 
 private val DogLightColors = lightColorScheme(
-    primary = Color(0xFF4F7837), onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFDCEBCF), onPrimaryContainer = Color(0xFF1A3510),
-    secondary = Color(0xFF667B58), onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFE5EBDD), onSecondaryContainer = Color(0xFF263521),
-    tertiary = Color(0xFF806D3F), onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0xFFF0E6C7), onTertiaryContainer = Color(0xFF342A0E),
-    background = Color(0xFFEAF3ED), onBackground = Color(0xFF202B22),
-    surface = Color(0xFFFFFCF4), onSurface = Color(0xFF202B22),
-    surfaceVariant = Color(0xFFE8EDE4), onSurfaceVariant = Color(0xFF626D60),
-    outline = Color(0xFF84917E), outlineVariant = Color(0xFFD4DDCE),
+    primary = Color(0xFF5264B8), onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFE0E5FF), onPrimaryContainer = Color(0xFF111B4A),
+    secondary = Color(0xFF59627D), onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFE2E6F4), onSecondaryContainer = Color(0xFF171F37),
+    tertiary = Color(0xFF805D4B), onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFF6DED1), onTertiaryContainer = Color(0xFF321B10),
+    background = Color(0xFFF5F6FB), onBackground = Color(0xFF1A1B22),
+    surface = Color(0xFFFFFBFF), onSurface = Color(0xFF1A1B22),
+    surfaceVariant = Color(0xFFE8E9F1), onSurfaceVariant = Color(0xFF606170),
+    outline = Color(0xFF777987), outlineVariant = Color(0xFFD8D9E4),
     error = Color(0xFFBA1A1A)
 )
 
 private val DogDarkColors = darkColorScheme(
-    primary = Color(0xFFB7D69F), onPrimary = Color(0xFF223A17),
-    primaryContainer = Color(0xFF38552A), onPrimaryContainer = Color(0xFFD7EFC5),
-    secondary = Color(0xFFC1D0B6), onSecondary = Color(0xFF2D3A28),
-    secondaryContainer = Color(0xFF414E3A), onSecondaryContainer = Color(0xFFE0EBD8),
-    tertiary = Color(0xFFDEC992), onTertiary = Color(0xFF403516),
-    tertiaryContainer = Color(0xFF594B27), onTertiaryContainer = Color(0xFFF5E5B8),
-    background = Color(0xFF121A14), onBackground = Color(0xFFE3EDE2),
-    surface = Color(0xFF1B251D), onSurface = Color(0xFFE3EDE2),
-    surfaceVariant = Color(0xFF3C483D), onSurfaceVariant = Color(0xFFC0CCBF),
-    outline = Color(0xFF899989), outlineVariant = Color(0xFF3C483D),
+    primary = Color(0xFFBEC7FF), onPrimary = Color(0xFF202E79),
+    primaryContainer = Color(0xFF394990), onPrimaryContainer = Color(0xFFE0E5FF),
+    secondary = Color(0xFFC3C8DE), onSecondary = Color(0xFF2C3147),
+    secondaryContainer = Color(0xFF42475E), onSecondaryContainer = Color(0xFFDFE2F8),
+    tertiary = Color(0xFFF0BEA5), onTertiary = Color(0xFF48291B),
+    tertiaryContainer = Color(0xFF654233), onTertiaryContainer = Color(0xFFFFDBCA),
+    background = Color(0xFF11131D), onBackground = Color(0xFFE3E2EB),
+    surface = Color(0xFF191B27), onSurface = Color(0xFFE3E2EB),
+    surfaceVariant = Color(0xFF444654), onSurfaceVariant = Color(0xFFC4C5D4),
+    outline = Color(0xFF8E90A0), outlineVariant = Color(0xFF444654),
     error = Color(0xFFFFB4AB)
 )
 
@@ -298,9 +301,14 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
         "dark" -> true
         else -> isSystemInDarkTheme()
     }
-    // Use a consistent sage-and-ivory brand palette instead of Android's
-    // device wallpaper colors, so the UI remains visually coherent on every phone.
-    val colors = if (dark) DogDarkColors else DogLightColors
+    // Match Seal's Material You behavior on Android 12+, with a stable
+    // indigo fallback for older Android versions.
+    val colors = when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && dark -> dynamicDarkColorScheme(context)
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> dynamicLightColorScheme(context)
+        dark -> DogDarkColors
+        else -> DogLightColors
+    }
 
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     var url by rememberSaveable { mutableStateOf(initialUrl.orEmpty()) }
@@ -334,6 +342,8 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
     var previewError by remember { mutableStateOf("") }
     var engineUpdating by remember { mutableStateOf(false) }
     var showFormatSheet by rememberSaveable { mutableStateOf(false) }
+    var showInputSheet by rememberSaveable { mutableStateOf(!initialUrl.isNullOrBlank()) }
+    var queueFilter by rememberSaveable { mutableStateOf("all") }
     var showAdvancedDownloadSettings by rememberSaveable { mutableStateOf(false) }
     var settingsReturnTab by rememberSaveable { mutableStateOf(0) }
     val download by DownloadState.state.collectAsState()
@@ -376,6 +386,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
     LaunchedEffect(initialUrl) {
         if (!initialUrl.isNullOrBlank()) {
             url = initialUrl
+            showInputSheet = true
             maxHeight = 0
             selectedVideoFormatId = ""
             selectedAudioFormatId = ""
@@ -466,6 +477,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                         maxHeight = 0
                         preferences.edit().putInt("max_height", 0).apply()
                         preview = result
+                        showInputSheet = false
                         showFormatSheet = true
                     }
                 }
