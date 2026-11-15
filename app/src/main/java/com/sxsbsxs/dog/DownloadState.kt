@@ -10,7 +10,10 @@ data class DownloadUiState(
     val message: String = "粘贴视频链接即可开始",
     val outputPath: String = "",
     val queuedCount: Int = 0,
-    val formatLabel: String = ""
+    val formatLabel: String = "",
+    val lastUrl: String = "",
+    val formatSelector: String = "",
+    val audioOnly: Boolean = false
 )
 
 object DownloadState {
@@ -26,11 +29,24 @@ object DownloadState {
     }
 
     fun started(queuedCount: Int, formatLabel: String) {
+        started(queuedCount, formatLabel, "", "", false)
+    }
+
+    fun started(
+        queuedCount: Int,
+        formatLabel: String,
+        url: String,
+        formatSelector: String,
+        audioOnly: Boolean
+    ) {
         mutableState.value = DownloadUiState(
             running = true,
             message = if (queuedCount > 0) "正在准备下载 · 后面还有 $queuedCount 个任务" else "正在准备下载…",
             queuedCount = queuedCount,
-            formatLabel = formatLabel
+            formatLabel = formatLabel,
+            lastUrl = url,
+            formatSelector = formatSelector,
+            audioOnly = audioOnly
         )
     }
 
@@ -71,27 +87,39 @@ object DownloadState {
     }
 
     fun completed(path: String, message: String) {
+        val previous = mutableState.value
         mutableState.value = DownloadUiState(
             progress = 100,
             progressKnown = true,
             message = message,
             outputPath = path,
             queuedCount = 0,
-            formatLabel = mutableState.value.formatLabel
+            formatLabel = previous.formatLabel,
+            lastUrl = previous.lastUrl,
+            formatSelector = previous.formatSelector,
+            audioOnly = previous.audioOnly
         )
     }
 
     fun failed(message: String) {
+        val previous = mutableState.value
         mutableState.value = DownloadUiState(
             message = message,
-            formatLabel = mutableState.value.formatLabel
+            formatLabel = previous.formatLabel,
+            lastUrl = previous.lastUrl,
+            formatSelector = previous.formatSelector,
+            audioOnly = previous.audioOnly
         )
     }
 
     fun canceled() {
+        val previous = mutableState.value
         mutableState.value = DownloadUiState(
             message = "已取消下载",
-            formatLabel = mutableState.value.formatLabel
+            formatLabel = previous.formatLabel,
+            lastUrl = previous.lastUrl,
+            formatSelector = previous.formatSelector,
+            audioOnly = previous.audioOnly
         )
     }
 }
