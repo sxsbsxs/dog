@@ -167,7 +167,7 @@ class MainActivity : ComponentActivity() {
             val wasKnownAdaptiveIconCrash =
                 previousCrash.contains("Only VectorDrawables and rasterized asset types are supported") &&
                 previousCrash.contains("PainterResources_androidKt.loadVectorResource") &&
-                previousCrash.contains("MainActivityKt$VideoFetchApp")
+                previousCrash.contains("MainActivityKt")
             if (wasKnownAdaptiveIconCrash) {
                 // This report is the confirmed launcher-icon crash fixed in this build.
                 CrashReporter.clearPreviousCrash(this)
