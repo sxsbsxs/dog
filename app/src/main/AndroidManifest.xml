@@ -10,9 +10,9 @@
         android:maxSdkVersion="28" />
     <application
         android:allowBackup="false"
-        android:icon="@drawable/ic_dog"
+        android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:roundIcon="@drawable/ic_dog"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Dog"
         android:extractNativeLibs="true">
