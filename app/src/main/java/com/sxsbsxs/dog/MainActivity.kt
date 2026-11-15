@@ -213,7 +213,8 @@ private data class DownloadHistoryItem(
     val time: String,
     val statusLabel: String,
     val location: String,
-    val message: String
+    val message: String,
+    val formatLabel: String
 )
 
 private fun parseDownloadHistory(json: String): List<DownloadHistoryItem> {
@@ -238,7 +239,8 @@ private fun parseDownloadHistory(json: String): List<DownloadHistoryItem> {
                         time = formatter.format(Date(item.optLong("timestamp"))),
                         statusLabel = statusLabel,
                         location = item.optString("location"),
-                        message = item.optString("message")
+                        message = item.optString("message"),
+                        formatLabel = item.optString("formatLabel")
                     )
                 )
             }
@@ -1744,6 +1746,13 @@ private fun HistoryRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (item.formatLabel.isNotBlank()) {
+                Text(
+                    item.formatLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
             if (item.message.isNotBlank() && item.fileName.isNotBlank()) {
                 Text(
                     item.message,
