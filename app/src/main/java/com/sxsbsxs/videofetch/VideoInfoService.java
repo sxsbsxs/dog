@@ -211,7 +211,8 @@ public final class VideoInfoService {
                         : failure.getMessage();
                 if (message == null || message.trim().isEmpty()) message = failure.getClass().getSimpleName();
                 if (message.length() > 360) message = message.substring(0, 360) + "…";
-                MAIN_HANDLER.post(() -> callback.onError(message));
+                final String callbackMessage = message;
+                MAIN_HANDLER.post(() -> callback.onError(callbackMessage));
             } finally {
                 if (cookieFile != null && cookieFile.exists() && !cookieFile.delete()) {
                     cookieFile.deleteOnExit();
