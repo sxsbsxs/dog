@@ -1,4 +1,4 @@
-# VideoFetch
+# video-dl
 
 一款面向 Android 的视频与音频下载器。界面采用 Jetpack Compose 与 Material Design 3，下载解析由 yt-dlp 提供支持。
 
@@ -40,7 +40,7 @@ APK 输出目录：`app/build/outputs/apk/debug/`。GitHub Actions 会运行原�
 
 ## 保存位置
 
-下载完成后会发布到系统公共目录 `Download/VideoFetch`。
+下载完成后会发布到系统公共目录 `Download/video-dl`。
 
 ## 许可证
 
