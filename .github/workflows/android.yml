@@ -27,6 +27,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Test C checksum against Python zlib
         run: python tools/test_native_crc32.py
+      - name: Check bundled yt-dlp plugin syntax
+        env:
+          PYTHONPYCACHEPREFIX: /tmp/dog-python-cache
+        run: python -m py_compile app/src/main/assets/yt-dlp-plugins/dog/yt_dlp_plugins/extractor/niconico.py
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug
       - name: Verify Python and native runtime packages
