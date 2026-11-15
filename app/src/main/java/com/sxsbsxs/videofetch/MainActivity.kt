@@ -570,6 +570,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     var preview by remember { mutableStateOf<VideoInfoService.Preview?>(null) }
     var lastDownloadPreview by remember { mutableStateOf<VideoInfoService.Preview?>(null) }
     var previewError by remember { mutableStateOf("") }
+    var previewDiagnostic by remember { mutableStateOf("") }
     var engineUpdating by remember { mutableStateOf(false) }
     var showFormatSheet by rememberSaveable { mutableStateOf(false) }
     var queueFilter by rememberSaveable { mutableStateOf("all") }
@@ -626,6 +627,13 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                     override fun onError(message: String) {
                         previewLoading = false
                         previewError = message
+                        previewDiagnostic = ""
+                        Toast.makeText(context, "重新解析失败：" + message, Toast.LENGTH_LONG).show()
+                    }
+                    override fun onError(message: String, diagnostic: String) {
+                        previewLoading = false
+                        previewError = message
+                        previewDiagnostic = diagnostic
                         Toast.makeText(context, "重新解析失败：" + message, Toast.LENGTH_LONG).show()
                     }
                     })
@@ -722,6 +730,23 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
         }
     }
 
+    val copyPreviewDiagnostic: () -> Unit = {
+        val report = previewDiagnostic
+        if (report.isBlank()) {
+            Toast.makeText(context, "当前没有可复制的解析诊断", Toast.LENGTH_SHORT).show()
+        } else {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            if (clipboard == null) {
+                Toast.makeText(context, "系统剪贴板不可用", Toast.LENGTH_SHORT).show()
+            } else {
+                clipboard.setPrimaryClip(
+                    android.content.ClipData.newPlainText("VideoFetch 预解析诊断（已脱敏）", report)
+                )
+                Toast.makeText(context, "已复制解析诊断，Cookie 值和链接参数已隐藏", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     val copyDownloadDiagnostic: () -> Unit = {
         val report = download.diagnostic
         if (report.isBlank()) {
@@ -754,6 +779,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
             previewLoading = true
             preview = null
             previewError = ""
+            previewDiagnostic = ""
             selectedVideoFormatId = ""
             selectedAudioFormatId = ""
             maxHeight = 0
@@ -769,12 +795,23 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                         preferences.edit().putInt("max_height", 0).apply()
                         preview = result
                         lastDownloadPreview = result
+                        previewDiagnostic = ""
                         showFormatSheet = true
                     }
                 }
                 override fun onError(message: String) {
                     previewLoading = false
-                    if (url.trim() == value) previewError = message
+                    if (url.trim() == value) {
+                        previewError = message
+                        previewDiagnostic = ""
+                    }
+                }
+                override fun onError(message: String, diagnostic: String) {
+                    previewLoading = false
+                    if (url.trim() == value) {
+                        previewError = message
+                        previewDiagnostic = diagnostic
+                    }
                 }
             })
         }
@@ -1170,6 +1207,14 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onErrorContainer
                                             )
+                                            if (previewDiagnostic.isNotBlank()) {
+                                                TextButton(
+                                                    onClick = copyPreviewDiagnostic,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Text("复制解析诊断（已隐藏 Cookie）")
+                                                }
+                                            }
                                             if (previewError.contains("YouTube 拦截了当前会话")) {
                                                 OutlinedButton(
                                                     onClick = openLogin,
