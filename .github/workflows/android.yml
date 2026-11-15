@@ -59,6 +59,7 @@ jobs:
           name: videofetch-debug-x86_64
           path: app/build/outputs/apk/debug/app-x86_64-debug.apk
       - name: Smoke-test app startup on Android 14 emulator
+        if: github.event_name == 'workflow_dispatch'
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
