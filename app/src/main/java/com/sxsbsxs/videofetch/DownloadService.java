@@ -640,7 +640,11 @@ public class DownloadService extends Service {
             if (base == null) base = getFilesDir();
         }
 
-        File directory = new File(base, customFolder ? "video-dl-staging" : "VideoFetch");
+        File directory = new File(
+                base,
+                customFolder ? "video-dl-staging"
+                        : Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ? "video-dl" : "VideoFetch"
+        );
         if (!directory.exists() && !directory.mkdirs()) {
             throw new IOException("无法创建下载目录：" + directory);
         }
