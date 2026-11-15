@@ -232,7 +232,7 @@ public final class VideoInfoService {
     private static String buildSafeDiagnostic(
             Context app, Throwable failure, String failureDetails
     ) {
-        StringBuilder report = new StringBuilder("VideoFetch 预解析诊断\\n");
+        StringBuilder report = new StringBuilder("VideoFetch 预解析诊断\n");
         try {
             String version = YoutubeDL.getInstance().versionName(app);
             if (version == null || version.trim().isEmpty()) {
@@ -240,34 +240,34 @@ public final class VideoInfoService {
             }
             report.append("yt-dlp: ")
                     .append(version == null || version.trim().isEmpty() ? "unknown" : version)
-                    .append('\\n');
+                    .append('\n');
         } catch (Throwable ignored) {
-            report.append("yt-dlp: unknown\\n");
+            report.append("yt-dlp: unknown\n");
         }
 
         File quickJs = new File(app.getApplicationInfo().nativeLibraryDir, "libqjs.so");
-        report.append("QuickJS: ").append(quickJs.isFile() ? "present" : "missing").append('\\n');
+        report.append("QuickJS: ").append(quickJs.isFile() ? "present" : "missing").append('\n');
         try {
             String jar = SecureCookieStore.loadCookieJar(app);
             report.append("Cookie jar: ")
                     .append(CookieJarExporter.countCookies(jar)).append(" rows / ")
-                    .append(CookieJarExporter.countDomains(jar)).append(" domains; values hidden\\n");
+                    .append(CookieJarExporter.countDomains(jar)).append(" domains; values hidden\n");
         } catch (Throwable ignored) {
-            report.append("Cookie jar: unavailable\\n");
+            report.append("Cookie jar: unavailable\n");
         }
 
         if (failureDetails != null && !failureDetails.trim().isEmpty()) {
-            report.append("\\n--- preview failure chain ---\\n").append(failureDetails);
+            report.append("\n--- preview failure chain ---\n").append(failureDetails);
         } else if (failure != null) {
-            report.append("\\n--- preview failure ---\\n")
+            report.append("\n--- preview failure ---\n")
                     .append(failure.getClass().getSimpleName());
         }
 
         String safe = report.toString()
-                .replaceAll("(?im)(cookie|set-cookie)\\\\s*:\\\\s*[^\\\\r\\\\n]+", "$1: [已隐藏]")
-                .replaceAll("(?i)(--cookies\\\\s+)[^\\\\s]+", "$1[已隐藏]")
-                .replaceAll("(?i)\\\\b(SID|HSID|SSID|SAPISID|APISID|LOGIN_INFO|LSID|NID|__Host-[A-Za-z0-9_-]+|__Secure-[A-Za-z0-9_-]+)\\\\s*=\\\\s*[^\\\\s;]+", "$1=[已隐藏]")
-                .replaceAll("https?://[^\\\\s<>\\\\x22]*\\\\?[^\\\\s<>\\\\x22]*", "[含查询参数的 URL 已隐藏]");
+                .replaceAll("(?im)(cookie|set-cookie)\\s*:\\s*[^\\r\\n]+", "$1: [已隐藏]")
+                .replaceAll("(?i)(--cookies\\s+)[^\\s]+", "$1[已隐藏]")
+                .replaceAll("(?i)\\b(SID|HSID|SSID|SAPISID|APISID|LOGIN_INFO|LSID|NID|__Host-[A-Za-z0-9_-]+|__Secure-[A-Za-z0-9_-]+)\\s*=\\s*[^\\s;]+", "$1=[已隐藏]")
+                .replaceAll("https?://[^\\s<>\\x22]*\\?[^\\s<>\\x22]*", "[含查询参数的 URL 已隐藏]");
         return safe.length() > 4800 ? safe.substring(safe.length() - 4800) : safe;
     }
 
