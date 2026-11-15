@@ -1377,6 +1377,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                         Button(
                                             onClick = {
                                                 if (youtubeLoginRequired) {
+                                                    url = download.lastUrl
                                                     openLogin()
                                                 } else {
                                                     onDownload(
