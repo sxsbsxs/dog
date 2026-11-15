@@ -549,7 +549,7 @@ public class DownloadService extends Service {
             }
 
             DownloadState.INSTANCE.updateMessage("YouTube 验证受限，正在尝试 TV 客户端…");
-            YoutubeDLRequest tvRequest = buildRequest(url, outputDirectory, task, false);
+            YoutubeDLRequest tvRequest = buildRequest(url, outputDirectory, task, false, true);
             applyCookieOptions(tvRequest, temporaryCookieFile);
             YouTubeRequestFallback.applyFallback(tvRequest);
             try {
@@ -557,7 +557,7 @@ public class DownloadService extends Service {
                 return;
             } catch (Exception tvFailure) {
                 DownloadState.INSTANCE.updateMessage("TV 客户端仍不可用，正在尝试 Safari HLS 流…");
-                YoutubeDLRequest safariRequest = buildRequest(url, outputDirectory, task, false);
+                YoutubeDLRequest safariRequest = buildRequest(url, outputDirectory, task, false, true);
                 applyCookieOptions(safariRequest, temporaryCookieFile);
                 YouTubeRequestFallback.applyHlsFallback(safariRequest);
                 try {
@@ -572,15 +572,18 @@ public class DownloadService extends Service {
     }
 
     private YoutubeDLRequest buildRequest(String url, File directory, DownloadTask task) throws IOException {
-        return buildRequest(url, directory, task, true);
+        return buildRequest(url, directory, task, true, false);
     }
 
     /**
      * Fallback requests use yt-dlp's native downloader. In particular, Safari
      * may expose HLS formats that must not be forced through aria2c.
+     * Their format IDs can differ from the primary client, so retry with a
+     * fresh best-available selector rather than reusing a stale selected ID.
      */
     private YoutubeDLRequest buildRequest(
-            String url, File directory, DownloadTask task, boolean allowAria2
+            String url, File directory, DownloadTask task,
+            boolean allowAria2, boolean useFallbackFormat
     ) throws IOException {
         YoutubeDLRequest request = new YoutubeDLRequest(url);
         request.addOption("--plugin-dirs",
@@ -628,7 +631,7 @@ public class DownloadService extends Service {
         request.addOption(downloadPlaylist ? "--yes-playlist" : "--no-playlist");
         if (downloadPlaylist) request.addOption("--no-abort-on-error");
         if (task.audioOnly) {
-            String audioSelector = task.formatSelector.trim();
+            String audioSelector = useFallbackFormat ? "" : task.formatSelector.trim();
             if (!audioSelector.isEmpty()) {
                 if (!isSafeFormatSelector(audioSelector) || audioSelector.contains("+")) {
                     throw new IllegalArgumentException("无效的音频格式 ID");
@@ -648,16 +651,18 @@ public class DownloadService extends Service {
             if (!audioQuality.matches("(?:0|[1-9]|10)")) audioQuality = "0";
             request.addOption("--audio-quality", audioQuality);
         } else {
-            String format = task.formatSelector.trim();
+            String format = useFallbackFormat ? "" : task.formatSelector.trim();
             if (!format.isEmpty()) {
                 if (!isSafeFormatSelector(format)) {
                     throw new IllegalArgumentException("无效的视频/音频格式 ID");
                 }
             } else {
                 int maxHeight = task.maxHeight;
-                format = maxHeight > 0
+                format = maxHeight > 0 && !useFallbackFormat
                         ? "bv*[height=" + maxHeight + "]+ba/b[height=" + maxHeight + "]"
-                        : "bv*+ba/b";
+                        : maxHeight > 0
+                                ? "bv*[height<=" + maxHeight + "]+ba/b[height<=" + maxHeight + "]"
+                                : "bv*+ba/b";
             }
             request.addOption("-f", format);
             String videoContainer = task.videoContainer;
