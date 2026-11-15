@@ -17,6 +17,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.res.painterResource
@@ -42,6 +43,7 @@ import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.TopAppBar
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.Arrangement
@@ -56,6 +58,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -72,10 +75,12 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -376,6 +381,8 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     }
 
     var selectedTab by rememberSaveable { mutableStateOf(0) }
+    var settingsSection by rememberSaveable { mutableStateOf<String?>(null) }
+    var isGridView by rememberSaveable { mutableStateOf(true) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val drawerScope = rememberCoroutineScope()
     var url by rememberSaveable { mutableStateOf(initialUrl.orEmpty()) }
@@ -390,7 +397,10 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
             authorizedSites = SecureCookieStore.listAuthorizedSites(context)
             hasCookieJar = SecureCookieStore.hasCookieJar(context)
         }
-        if (destination == 4) settingsReturnTab = selectedTab
+        if (destination == 4) {
+            settingsReturnTab = selectedTab
+            settingsSection = null
+        }
         selectedTab = destination
         drawerScope.launch { drawerState.close() }
     }
@@ -424,6 +434,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
 
     var previewLoading by remember { mutableStateOf(false) }
     var preview by remember { mutableStateOf<VideoInfoService.Preview?>(null) }
+    var lastDownloadPreview by remember { mutableStateOf<VideoInfoService.Preview?>(null) }
     var previewError by remember { mutableStateOf("") }
     var engineUpdating by remember { mutableStateOf(false) }
     var showFormatSheet by rememberSaveable { mutableStateOf(false) }
@@ -454,6 +465,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                             maxHeight = 0
                             preferences.edit().putInt("max_height", 0).apply()
                             preview = result
+                            lastDownloadPreview = result
                             previewError = ""
                             showFormatSheet = true
                         }
@@ -563,6 +575,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                         maxHeight = 0
                         preferences.edit().putInt("max_height", 0).apply()
                         preview = result
+                        lastDownloadPreview = result
                         showInputSheet = false
                         showFormatSheet = true
                     }
@@ -606,6 +619,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                 preferences.edit().putInt("max_height", 0).apply()
             }
             showFormatSheet = false
+            lastDownloadPreview = preview ?: lastDownloadPreview
             onDownload(value, formatSelector, audioOnly, formatLabel)
             url = ""
             preview = null
@@ -714,43 +728,56 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
         ) {
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.surface,
+                modifier = if (selectedTab == 0) Modifier.statusBarsPadding() else Modifier,
                 topBar = {
-                    val pageTitle = when (selectedTab) {
-                        0 -> "下载队列"
-                        1 -> "下载记录"
-                        2 -> "网站授权"
-                        3 -> "任务列表"
-                        else -> "设置"
-                    }
-                    val navigation: @Composable () -> Unit = {
-                        if (selectedTab == 4) {
-                            IconButton(onClick = { selectedTab = settingsReturnTab }) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "返回")
-                            }
-                        } else {
-                            IconButton(onClick = { drawerScope.launch { drawerState.open() } }) {
-                                Icon(Icons.Default.Menu, contentDescription = "打开导航菜单")
+                    if (selectedTab != 0) {
+                        val pageTitle = when (selectedTab) {
+                            1 -> "下载记录"
+                            2 -> "网站授权"
+                            3 -> "任务列表"
+                            else -> when (settingsSection) {
+                                "appearance" -> "外观"
+                                "format" -> "下载格式"
+                                "advanced" -> "字幕与播放列表"
+                                "engine" -> "解析引擎"
+                                "storage" -> "下载目录"
+                                "about" -> "关于 video-dl"
+                                else -> "设置"
                             }
                         }
-                    }
-                    if (selectedTab == 1 || selectedTab == 2 || selectedTab == 4) {
-                        LargeTopAppBar(
-                            navigationIcon = navigation,
-                            title = {
-                                Text(pageTitle, fontWeight = FontWeight.Medium)
-                            }
-                        )
-                    } else {
-                        TopAppBar(
-                            navigationIcon = navigation,
-                            title = {
-                                Text(
-                                    pageTitle,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Medium
+                        val navigation: @Composable () -> Unit = {
+                            IconButton(onClick = {
+                                if (selectedTab == 4 && settingsSection != null) {
+                                    settingsSection = null
+                                } else if (selectedTab == 4) {
+                                    selectedTab = settingsReturnTab
+                                } else {
+                                    drawerScope.launch { drawerState.open() }
+                                }
+                            }) {
+                                Icon(
+                                    if (selectedTab == 4) Icons.Default.ArrowBack else Icons.Default.Menu,
+                                    contentDescription = if (selectedTab == 4) "返回" else "打开导航菜单"
                                 )
                             }
-                        )
+                        }
+                        if (selectedTab == 1 || selectedTab == 2 || selectedTab == 4) {
+                            LargeTopAppBar(
+                                navigationIcon = navigation,
+                                title = { Text(pageTitle, fontWeight = FontWeight.Medium) }
+                            )
+                        } else {
+                            TopAppBar(
+                                navigationIcon = navigation,
+                                title = {
+                                    Text(
+                                        pageTitle,
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            )
+                        }
                     }
                 },
                 floatingActionButton = {
@@ -778,27 +805,69 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                     LazyColumn(
                         modifier = Modifier.fillMaxSize().padding(padding),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                            start = 20.dp, end = 20.dp, top = 12.dp, bottom = 112.dp
+                            start = 20.dp, end = 20.dp, top = 0.dp, bottom = 112.dp
                         ),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         item {
+                            Spacer(Modifier.height(28.dp))
                             Row(
-                                modifier = Modifier.fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                modifier = Modifier.fillMaxWidth().height(64.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                listOf(
+                                IconButton(onClick = { drawerScope.launch { drawerState.open() } }) {
+                                    Icon(Icons.Default.Menu, contentDescription = "打开导航菜单")
+                                }
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    "下载队列",
+                                    style = MaterialTheme.typography.titleLarge.copy(
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                )
+                            }
+                        }
+                        item {
+                            ChoiceChipRows(
+                                options = listOf(
                                     "all" to "全部",
                                     "downloading" to "下载中",
                                     "queued" to "等待中",
                                     "finished" to "最近完成"
-                                ).forEach { (value, label) ->
-                                    FilterChip(
-                                        selected = queueFilter == value,
-                                        onClick = { queueFilter = value },
-                                        label = { Text(label) }
+                                ),
+                                selected = queueFilter,
+                                onSelected = { queueFilter = it }
+                            )
+                        }
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    when {
+                                        download.running -> "正在进行"
+                                        download.lastUrl.isNotBlank() -> "最近任务"
+                                        else -> "下载列表"
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    if (download.running) "1 项" else if (download.lastUrl.isNotBlank()) "1 项" else "0 项",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                IconButton(onClick = { isGridView = !isGridView }) {
+                                    Icon(
+                                        if (isGridView) Icons.Default.List else Icons.Default.ViewModule,
+                                        contentDescription = if (isGridView) "切换列表视图" else "切换网格视图"
                                     )
+                                }
+                                IconButton(onClick = { queueFilter = "all" }) {
+                                    Icon(Icons.Default.MoreVert, contentDescription = "更多任务筛选")
                                 }
                             }
                         }
