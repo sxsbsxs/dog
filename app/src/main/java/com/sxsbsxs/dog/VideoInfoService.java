@@ -127,6 +127,7 @@ public final class VideoInfoService {
             try {
                 YtDlpEngine.initialize(app);
                 YoutubeDLRequest request = new YoutubeDLRequest(url);
+                request.addOption("--plugin-dirs", YtDlpEngine.getPluginDirectory(app).getAbsolutePath());
                 request.addOption("--no-playlist");
                 request.addOption("--no-warnings");
                 request.addOption("--dump-json");
