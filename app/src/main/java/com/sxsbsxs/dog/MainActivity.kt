@@ -873,13 +873,105 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                                     }
                                 }
                             }
+                        } else if (download.lastUrl.isNotBlank()) {
+                            val completed = download.progress == 100
+                            val failed = download.message.startsWith("下载失败")
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(24.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(18.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Surface(
+                                            modifier = Modifier.size(44.dp),
+                                            shape = RoundedCornerShape(15.dp),
+                                            color = if (failed) MaterialTheme.colorScheme.errorContainer
+                                                else MaterialTheme.colorScheme.secondaryContainer
+                                        ) {
+                                            Icon(
+                                                if (completed) Icons.Default.CheckCircle else Icons.Default.History,
+                                                contentDescription = null,
+                                                modifier = Modifier.padding(11.dp),
+                                                tint = if (failed) MaterialTheme.colorScheme.onErrorContainer
+                                                    else MaterialTheme.colorScheme.onSecondaryContainer
+                                            )
+                                        }
+                                        Spacer(Modifier.width(12.dp))
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text(
+                                                when {
+                                                    completed -> "下载已完成"
+                                                    failed -> "下载未成功"
+                                                    else -> "任务已停止"
+                                                },
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                download.formatLabel.ifBlank { "自动选择格式" },
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        download.message,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = if (failed) MaterialTheme.colorScheme.error
+                                            else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    if (download.outputPath.isNotBlank()) {
+                                        Text(
+                                            "保存位置：" + download.outputPath,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Button(
+                                        onClick = {
+                                            DownloadService.start(
+                                                context,
+                                                download.lastUrl,
+                                                download.formatSelector,
+                                                download.audioOnly,
+                                                download.formatLabel
+                                            )
+                                        },
+                                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                                        shape = RoundedCornerShape(16.dp)
+                                    ) {
+                                        Icon(Icons.Default.Refresh, contentDescription = null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(if (completed) "再次下载" else "重试下载")
+                                    }
+                                    OutlinedButton(
+                                        onClick = {
+                                            url = download.lastUrl
+                                            selectedTab = 0
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(16.dp)
+                                    ) {
+                                        Icon(Icons.Default.Tune, contentDescription = null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("重新解析并修改格式")
+                                    }
+                                }
+                            }
                         } else {
                             EmptyState(
-                                icon = if (download.progress == 100) Icons.Default.CheckCircle else Icons.Default.Download,
-                                title = if (download.progress == 100) "下载已完成" else "目前没有下载任务",
-                                description = if (download.outputPath.isNotBlank()) download.outputPath else download.message,
-                                action = if (download.progress == 100) "查看下载历史" else "去粘贴视频链接",
-                                onAction = { selectedTab = if (download.progress == 100) 1 else 0 }
+                                icon = Icons.Default.Download,
+                                title = "目前没有下载任务",
+                                description = "粘贴视频链接，选择格式后开始下载。",
+                                action = "去粘贴视频链接",
+                                onAction = { selectedTab = 0 }
                             )
                         }
                     }
