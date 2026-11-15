@@ -19,6 +19,10 @@ class ExtractorError(Exception):
 
 
 class FakeNiconicoIE:
+    def __init_subclass__(cls, plugin_name=None, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls.plugin_name = plugin_name
+
     def __init__(self, page):
         self.page = page
         self.options_request = None
