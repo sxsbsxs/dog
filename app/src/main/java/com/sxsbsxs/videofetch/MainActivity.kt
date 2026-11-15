@@ -454,11 +454,9 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     var previewError by remember { mutableStateOf("") }
     var engineUpdating by remember { mutableStateOf(false) }
     var showFormatSheet by rememberSaveable { mutableStateOf(false) }
-    var showInputSheet by rememberSaveable { mutableStateOf(false) }
     var queueFilter by rememberSaveable { mutableStateOf("all") }
     var showAdvancedDownloadSettings by rememberSaveable { mutableStateOf(false) }
     val download by DownloadState.state.collectAsState()
-    val inputSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val formatSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val loginLauncher = rememberLauncherForActivityResult(
@@ -500,7 +498,6 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     LaunchedEffect(initialUrl) {
         if (!initialUrl.isNullOrBlank()) {
             url = initialUrl
-            showInputSheet = true
             maxHeight = 0
             selectedVideoFormatId = ""
             selectedAudioFormatId = ""
@@ -592,7 +589,6 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                         preferences.edit().putInt("max_height", 0).apply()
                         preview = result
                         lastDownloadPreview = result
-                        showInputSheet = false
                         showFormatSheet = true
                     }
                 }
@@ -696,9 +692,15 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                             }
                         }
                         NavigationDrawerItem(
-                            label = { Text("下载队列") },
+                            label = { Text("首页") },
                             selected = selectedTab == 0,
                             onClick = { navigateFromDrawer(0) },
+                            icon = { Icon(Icons.Default.Home, contentDescription = null) }
+                        )
+                        NavigationDrawerItem(
+                            label = { Text("下载队列") },
+                            selected = selectedTab == 5,
+                            onClick = { navigateFromDrawer(5) },
                             icon = { Icon(Icons.Default.Download, contentDescription = null) }
                         )
                         NavigationDrawerItem(
@@ -750,6 +752,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                             1 -> "下载记录"
                             2 -> "网站授权"
                             3 -> "任务列表"
+                            5 -> "下载队列"
                             else -> when (settingsSection) {
                                 "appearance" -> "外观"
                                 "format" -> "下载格式"
@@ -800,6 +803,20 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                         style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.Medium
                                     )
+                                },
+                                actions = {
+                                    if (selectedTab == 5) {
+                                        TextButton(onClick = {
+                                            url = ""
+                                            preview = null
+                                            previewError = ""
+                                            selectedVideoFormatId = ""
+                                            selectedAudioFormatId = ""
+                                            selectedTab = 0
+                                        }) {
+                                            Text("新建下载")
+                                        }
+                                    }
                                 }
                             )
                         }
@@ -808,49 +825,200 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
             ) { padding ->
             when (selectedTab) {
                 0 -> {
+                    Column(
+                        modifier = Modifier.fillMaxSize()
+                            .padding(padding)
+                            .imePadding()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 22.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .padding(top = 18.dp, bottom = 28.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = { drawerScope.launch { drawerState.open() } }) {
+                                Icon(Icons.Default.Menu, contentDescription = "打开导航菜单")
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    "video-dl",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    "视频 / 音频下载器",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(Modifier.weight(1f))
+                            IconButton(onClick = { selectedTab = 5 }) {
+                                Icon(Icons.Default.Download, contentDescription = "打开下载队列")
+                            }
+                        }
+
+                        Spacer(Modifier.height(28.dp))
+                        Text(
+                            "下载视频",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "粘贴视频链接，解析后选择画质并开始下载",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(24.dp))
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(26.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(18.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(
+                                        modifier = Modifier.size(42.dp),
+                                        shape = RoundedCornerShape(14.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Link,
+                                            contentDescription = null,
+                                            modifier = Modifier.padding(10.dp),
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text(
+                                            "视频链接",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            "支持粘贴或手动输入",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                OutlinedTextField(
+                                    value = url,
+                                    onValueChange = {
+                                        url = it
+                                        maxHeight = 0
+                                        preferences.edit().putString("last_input_url", it)
+                                            .putInt("max_height", 0).apply()
+                                        preview = null
+                                        previewError = ""
+                                        selectedVideoFormatId = ""
+                                        selectedAudioFormatId = ""
+                                        showFormatSheet = false
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    placeholder = { Text("粘贴视频链接 https://…") },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Link, contentDescription = null)
+                                    },
+                                    trailingIcon = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            IconButton(onClick = pasteUrl) {
+                                                Icon(Icons.Default.ContentPaste, contentDescription = "粘贴")
+                                            }
+                                            if (url.isNotBlank()) {
+                                                IconButton(onClick = {
+                                                    url = ""
+                                                    preview = null
+                                                    previewError = ""
+                                                    selectedVideoFormatId = ""
+                                                    selectedAudioFormatId = ""
+                                                }) {
+                                                    Icon(Icons.Default.Close, contentDescription = "清空")
+                                                }
+                                            }
+                                        }
+                                    },
+                                    keyboardOptions = KeyboardOptions(
+                                        capitalization = KeyboardCapitalization.None,
+                                        imeAction = ImeAction.Go
+                                    ),
+                                    keyboardActions = KeyboardActions(onGo = { startPreview() }),
+                                    shape = RoundedCornerShape(18.dp)
+                                )
+
+                                if (previewError.isNotBlank()) {
+                                    Surface(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(14.dp),
+                                        color = MaterialTheme.colorScheme.errorContainer
+                                    ) {
+                                        Text(
+                                            previewError,
+                                            modifier = Modifier.padding(13.dp),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                    }
+                                }
+
+                                Button(
+                                    onClick = startPreview,
+                                    enabled = url.isNotBlank() && !previewLoading && !engineUpdating &&
+                                        !EngineUpdateManager.isUpdating(),
+                                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                                    shape = RoundedCornerShape(17.dp)
+                                ) {
+                                    if (previewLoading) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(19.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                        Spacer(Modifier.width(9.dp))
+                                        Text("正在解析…")
+                                    } else {
+                                        Icon(Icons.Default.Search, contentDescription = null)
+                                        Spacer(Modifier.width(9.dp))
+                                        Text("解析并选择格式", fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(18.dp))
+                        Text(
+                            "解析和下载都在本机完成，网站授权仅保存在设备上。",
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(28.dp))
+                    }
+                }
+                5 -> {
                     val showRunning = queueFilter == "all" || queueFilter == "downloading"
                     val showQueued = queueFilter == "all" || queueFilter == "queued"
                     val showFinished = queueFilter == "all" || queueFilter == "finished"
                     LazyColumn(
                         modifier = Modifier.fillMaxSize().padding(padding),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                            start = 20.dp, end = 20.dp, top = 0.dp, bottom = 112.dp
+                            start = 20.dp, end = 20.dp, top = 0.dp, bottom = 28.dp
                         ),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        item {
-                            Spacer(Modifier.height(28.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth().height(64.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                IconButton(onClick = { drawerScope.launch { drawerState.open() } }) {
-                                    Icon(Icons.Default.Menu, contentDescription = "打开导航菜单")
-                                }
-                                Spacer(Modifier.width(4.dp))
-                                Text(
-                                    "下载队列",
-                                    style = MaterialTheme.typography.titleLarge.copy(
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                )
-                                Spacer(Modifier.weight(1f))
-                                TextButton(
-                                    onClick = {
-                                        url = ""
-                                        preview = null
-                                        previewError = ""
-                                        selectedVideoFormatId = ""
-                                        selectedAudioFormatId = ""
-                                        showInputSheet = true
-                                    }
-                                ) {
-                                    Icon(Icons.Default.Download, contentDescription = null)
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("新建下载")
-                                }
-                            }
-                        }
                         item {
                             ChoiceChipRows(
                                 options = listOf(
@@ -1041,7 +1209,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                                 preview = lastDownloadPreview
                                                 selectedTab = 0
                                                 showFormatSheet = preview != null
-                                                if (preview == null) showInputSheet = true
+                                                selectedTab = 0
                                             },
                                             modifier = Modifier.weight(1f)
                                         ) { Text("修改格式") }
@@ -1082,7 +1250,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                         previewError = ""
                                         selectedVideoFormatId = ""
                                         selectedAudioFormatId = ""
-                                        showInputSheet = true
+                                        selectedTab = 0
                                     }
                                 )
                             }
@@ -1788,156 +1956,6 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
         }
 
         }
-        if (showInputSheet) {
-            ModalBottomSheet(
-                onDismissRequest = { showInputSheet = false },
-                sheetState = inputSheetState,
-                containerColor = MaterialTheme.colorScheme.surface
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth()
-                        .imePadding()
-                        .padding(horizontal = 20.dp)
-                        .padding(top = 8.dp, bottom = 28.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            modifier = Modifier.size(44.dp),
-                            shape = RoundedCornerShape(15.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer
-                        ) {
-                            Icon(
-                                Icons.Default.Link,
-                                contentDescription = null,
-                                modifier = Modifier.padding(11.dp),
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                "新建下载",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                "粘贴一个视频链接，选择画质后开始下载",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        IconButton(onClick = { showInputSheet = false }) {
-                            Icon(Icons.Default.Close, contentDescription = "关闭")
-                        }
-                    }
-
-                    OutlinedTextField(
-                        value = url,
-                        onValueChange = {
-                            url = it
-                            maxHeight = 0
-                            preferences.edit().putString("last_input_url", it)
-                                .putInt("max_height", 0).apply()
-                            preview = null
-                            previewError = ""
-                            selectedVideoFormatId = ""
-                            selectedAudioFormatId = ""
-                            showFormatSheet = false
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        placeholder = { Text("粘贴视频链接 https://…") },
-                        leadingIcon = {
-                            Icon(Icons.Default.Link, contentDescription = null)
-                        },
-                        trailingIcon = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = pasteUrl) {
-                                    Icon(Icons.Default.ContentPaste, contentDescription = "粘贴")
-                                }
-                                if (url.isNotBlank()) {
-                                    IconButton(onClick = {
-                                        url = ""
-                                        preview = null
-                                        previewError = ""
-                                        selectedVideoFormatId = ""
-                                        selectedAudioFormatId = ""
-                                    }) {
-                                        Icon(Icons.Default.Close, contentDescription = "清空")
-                                    }
-                                }
-                            }
-                        },
-                        keyboardOptions = KeyboardOptions(
-                            capitalization = KeyboardCapitalization.None,
-                            imeAction = ImeAction.Go
-                        ),
-                        keyboardActions = KeyboardActions(onGo = { startPreview() }),
-                        shape = RoundedCornerShape(18.dp)
-                    )
-
-                    if (previewError.isNotBlank()) {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
-                            color = MaterialTheme.colorScheme.errorContainer
-                        ) {
-                            Text(
-                                previewError,
-                                modifier = Modifier.padding(13.dp),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                        }
-                    }
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "下载内容",
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        ChoiceChipRows(
-                            options = listOf("video" to "视频", "audio" to "音频"),
-                            selected = if (audioOnly) "audio" else "video",
-                            onSelected = { audioOnly = it == "audio" }
-                        )
-                    }
-
-                    Button(
-                        onClick = startPreview,
-                        enabled = url.isNotBlank() && !previewLoading && !engineUpdating &&
-                            !EngineUpdateManager.isUpdating(),
-                        modifier = Modifier.fillMaxWidth().height(54.dp),
-                        shape = RoundedCornerShape(17.dp)
-                    ) {
-                        if (previewLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(19.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                            Spacer(Modifier.width(9.dp))
-                            Text("正在解析…")
-                        } else {
-                            Icon(Icons.Default.Search, contentDescription = null)
-                            Spacer(Modifier.width(9.dp))
-                            Text("解析并选择格式", fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                    Text(
-                        "解析和下载都在本机完成，网站授权仅保存在设备上。",
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-
         if (showFormatSheet && preview != null) {
             ModalBottomSheet(
                 onDismissRequest = { showFormatSheet = false },
