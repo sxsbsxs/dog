@@ -140,7 +140,22 @@ public final class VideoInfoService {
 
                 // Use the raw JSON output so every entry in yt-dlp's formats[]
                 // is inspected, rather than trusting a partially mapped model.
-                YoutubeDLResponse response = YoutubeDL.getInstance().execute(request, null, false, null);
+                YoutubeDLResponse response;
+                try {
+                    response = YoutubeDL.getInstance().execute(request, null, false, null);
+                } catch (Exception firstFailure) {
+                    if (!YouTubeRequestFallback.shouldRetry(
+                            url, firstFailure, firstFailure.getMessage())) {
+                        throw firstFailure;
+                    }
+                    YouTubeRequestFallback.applyFallback(request);
+                    try {
+                        response = YoutubeDL.getInstance().execute(request, null, false, null);
+                    } catch (Exception retryFailure) {
+                        retryFailure.addSuppressed(firstFailure);
+                        throw retryFailure;
+                    }
+                }
                 String rawOutput = response.getOut();
                 int jsonStart = rawOutput == null ? -1 : rawOutput.indexOf('{');
                 String screenMessages = jsonStart > 0 ? rawOutput.substring(0, jsonStart) : "";
@@ -185,9 +200,11 @@ public final class VideoInfoService {
                         niconicoApiMode);
                 callback.onSuccess(preview);
             } catch (Throwable failure) {
-                String message = failure.getMessage();
+                String message = YouTubeRequestFallback.isBotChallenge(failure)
+                        ? YouTubeRequestFallback.userMessage()
+                        : failure.getMessage();
                 if (message == null || message.trim().isEmpty()) message = failure.getClass().getSimpleName();
-                if (message.length() > 240) message = message.substring(0, 240) + "…";
+                if (message.length() > 360) message = message.substring(0, 360) + "…";
                 callback.onError(message);
             } finally {
                 if (cookieFile != null && cookieFile.exists() && !cookieFile.delete()) {
