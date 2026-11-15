@@ -268,7 +268,7 @@ public class DownloadService extends Service {
                 if (archiveEnabled) {
                     String message = "没有新文件：视频可能都已下载过，已按下载归档跳过";
                     DownloadHistoryStore.record(
-                            this, url, "", "", "completed", message);
+                            this, url, "", "", "completed", message, task.formatLabel);
                     DownloadState.INSTANCE.completed("", message);
                     NotificationManager manager = getSystemService(NotificationManager.class);
                     if (manager != null) {
@@ -287,7 +287,7 @@ public class DownloadService extends Service {
                         String publishedUri = MediaStorePublisher.publish(this, file);
                         publishedCount++;
                         DownloadHistoryStore.record(
-                                this, url, file.getName(), publishedUri, "completed", "下载完成");
+                                this, url, file.getName(), publishedUri, "completed", "下载完成", task.formatLabel);
                         // Avoid retaining a second full-size copy after public publishing succeeds.
                         if (!file.delete()) {
                             Log.w(TAG, "Published file but could not remove staging copy: " + file);
@@ -296,7 +296,7 @@ public class DownloadService extends Service {
                         publishFailures++;
                         DownloadHistoryStore.record(
                                 this, url, file.getName(), file.getAbsolutePath(),
-                                "saved_private", "公共目录发布失败，文件仍保留在应用目录");
+                                "saved_private", "公共目录发布失败，文件仍保留在应用目录", task.formatLabel);
                         Log.e(TAG, "Could not publish " + file.getName(), publishFailure);
                     }
                 }
@@ -305,7 +305,7 @@ public class DownloadService extends Service {
                 for (File file : completedFiles) {
                     DownloadHistoryStore.record(
                             this, url, file.getName(), file.getAbsolutePath(),
-                            "completed", "下载完成");
+                            "completed", "下载完成", task.formatLabel);
                 }
             }
 
@@ -333,11 +333,11 @@ public class DownloadService extends Service {
                 manager.notify(NOTIFICATION_ID, buildNotification(finishedMessage, 100, false));
             }
         } catch (YoutubeDL.CanceledException canceled) {
-            DownloadHistoryStore.record(this, url, "", "", "canceled", "已取消下载");
+            DownloadHistoryStore.record(this, url, "", "", "canceled", "已取消下载", task.formatLabel);
             DownloadState.INSTANCE.canceled();
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
-            DownloadHistoryStore.record(this, url, "", "", "canceled", "已取消下载");
+            DownloadHistoryStore.record(this, url, "", "", "canceled", "已取消下载", task.formatLabel);
             DownloadState.INSTANCE.canceled();
         } catch (Throwable failure) {
             String diagnostic;
@@ -345,7 +345,7 @@ public class DownloadService extends Service {
                 diagnostic = processOutputTail.toString();
             }
             String message = formatDownloadError(failure, diagnostic);
-            DownloadHistoryStore.record(this, url, "", "", "failed", message);
+            DownloadHistoryStore.record(this, url, "", "", "failed", message, task.formatLabel);
             DownloadState.INSTANCE.failed(message);
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
