@@ -18,6 +18,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateDpAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.res.painterResource
@@ -25,6 +26,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TextField
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
@@ -81,6 +83,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ViewModule
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -382,6 +385,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
 
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     var settingsSection by rememberSaveable { mutableStateOf<String?>(null) }
+    var settingsReturnTab by rememberSaveable { mutableStateOf(0) }
     var isGridView by rememberSaveable { mutableStateOf(true) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val drawerScope = rememberCoroutineScope()
@@ -441,7 +445,6 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     var showInputSheet by rememberSaveable { mutableStateOf(false) }
     var queueFilter by rememberSaveable { mutableStateOf("all") }
     var showAdvancedDownloadSettings by rememberSaveable { mutableStateOf(false) }
-    var settingsReturnTab by rememberSaveable { mutableStateOf(0) }
     val download by DownloadState.state.collectAsState()
     val inputSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -1613,136 +1616,230 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                 }
 
                 4 -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(padding)
-                            .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 20.dp, vertical = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(20.dp)
-                    ) {
-                        Text(
-                            "按使用习惯调整下载方式，修改会自动保存",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        SettingsGroup("外观", "应用的显示方式") {
-                            ChoiceChipRows(
-                                options = listOf("system" to "跟随系统", "light" to "浅色", "dark" to "深色"),
-                                selected = themeMode,
-                                onSelected = { themeMode = it }
-                            )
-                        }
-
-                        SettingsGroup("下载格式", "选择视频或音频，以及画质和文件格式") {
-                            ChoiceChipRows(
-                                options = listOf("video" to "视频", "audio" to "音频"),
-                                selected = if (audioOnly) "audio" else "video",
-                                onSelected = { audioOnly = it == "audio" }
-                            )
-                            if (!audioOnly) {
-                                Text("当前视频可用画质", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                val currentVideoQualities = preview?.qualities.orEmpty()
-                                if (currentVideoQualities.isEmpty()) {
-                                    Text(
-                                        if (preview == null) "先在主页解析视频，这里才会显示源站真实提供的画质。"
-                                        else "当前视频没有返回可识别的画质选项。",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                } else {
-                                    ChoiceChipRows(
-                                        options = currentVideoQualities.map { it.height.toString() to it.label },
-                                        selected = maxHeight.toString(),
-                                        onSelected = {
-                                            val selectedHeight = it.toIntOrNull() ?: 0
-                                            maxHeight = selectedHeight
-                                            preferences.edit().putInt("max_height", selectedHeight).apply()
-                                        }
-                                    )
+                    if (settingsSection == null) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize().padding(padding),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 28.dp)
+                        ) {
+                            item {
+                                SealSettingTitle("设置")
+                            }
+                            item {
+                                SealSettingItem(
+                                    title = "外观",
+                                    description = "主题颜色、浅色和深色模式",
+                                    icon = Icons.Default.Tune
+                                ) { settingsSection = "appearance" }
+                            }
+                            item {
+                                SealSettingItem(
+                                    title = "下载格式",
+                                    description = "视频、音频、画质与文件格式",
+                                    icon = Icons.Default.Download
+                                ) { settingsSection = "format" }
+                            }
+                            item {
+                                SealSettingItem(
+                                    title = "字幕与播放列表",
+                                    description = "字幕语言、播放列表与重复下载",
+                                    icon = Icons.Default.List
+                                ) { settingsSection = "advanced" }
+                            }
+                            item {
+                                SealSettingItem(
+                                    title = "下载目录",
+                                    description = "Download/video-dl",
+                                    icon = Icons.Default.Folder
+                                ) { settingsSection = "storage" }
+                            }
+                            item {
+                                SealSettingItem(
+                                    title = "网站登录与 Cookie",
+                                    description = "管理本机保存的网站授权",
+                                    icon = Icons.Default.Link
+                                ) {
+                                    authorizedSites = SecureCookieStore.listAuthorizedSites(context)
+                                    hasCookieJar = SecureCookieStore.hasCookieJar(context)
+                                    selectedTab = 2
                                 }
-                                Text("视频格式", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                ChoiceChipRows(
-                                    options = listOf("mp4" to "MP4", "mkv" to "MKV", "webm" to "WebM"),
-                                    selected = videoContainer,
-                                    onSelected = { videoContainer = it }
-                                )
-                            } else {
-                                Text("音频格式", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                ChoiceChipRows(
-                                    options = listOf("mp3" to "MP3", "m4a" to "M4A", "opus" to "Opus", "flac" to "FLAC"),
-                                    selected = audioFormat,
-                                    onSelected = { audioFormat = it }
-                                )
-                                SettingsToggleRow(
-                                    title = "嵌入封面图片",
-                                    description = "将视频封面写入音频文件",
-                                    checked = embedThumbnail,
-                                    onCheckedChange = { embedThumbnail = it }
-                                )
+                            }
+                            item {
+                                SealSettingItem(
+                                    title = "解析引擎",
+                                    description = "yt-dlp 更新与下载并发设置",
+                                    icon = Icons.Default.Refresh
+                                ) { settingsSection = "engine" }
+                            }
+                            item {
+                                SealSettingItem(
+                                    title = "关于 video-dl",
+                                    description = "版本信息、开源许可与隐私说明",
+                                    icon = Icons.Default.Info
+                                ) { settingsSection = "about" }
                             }
                         }
-
-                        SettingsGroup("字幕与播放列表", "默认仅下载当前视频，避免意外下载整张列表") {
-                            SettingsToggleRow("同时下载字幕", "包含网站提供的自动字幕", downloadSubtitles) { downloadSubtitles = it }
-                            if (downloadSubtitles) {
-                                OutlinedTextField(
-                                    value = subtitleLanguages,
-                                    onValueChange = { subtitleLanguages = it },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(14.dp),
-                                    label = { Text("字幕语言") },
-                                    placeholder = { Text("all 或 zh-Hans,zh-CN,en") },
-                                    supportingText = { Text("输入 all 下载全部语言，或填写语言代码") }
-                                )
-                            }
-                            SettingsToggleRow("下载整个播放列表", "开启后按顺序下载列表中的视频", downloadPlaylist) { downloadPlaylist = it }
-                            SettingsToggleRow("跳过已经下载过的视频", "在本机保存 yt-dlp 下载归档", skipExisting) { skipExisting = it }
-                        }
-
-                        SettingsGroup("下载速度", "较高并发会增加网络和设备负载") {
-                            ChoiceChipRows(
-                                options = listOf("1" to "省流量", "4" to "均衡", "8" to "高速"),
-                                selected = concurrentFragments.toString(),
-                                onSelected = { concurrentFragments = it.toIntOrNull() ?: 4 }
-                            )
-                        }
-
-                        SettingsGroup("解析引擎", "网站改版导致解析失败时，可以尝试更新 yt-dlp") {
-                            SettingsToggleRow(
-                                "自动更新解析引擎",
-                                "每周检查一次，只在下载和解析空闲时执行",
-                                autoUpdateEngine
-                            ) { autoUpdateEngine = it }
-                            if (autoUpdateEngine) {
-                                SettingsToggleRow(
-                                    "仅使用 Wi-Fi 更新",
-                                    "避免自动更新消耗移动数据",
-                                    autoUpdateWifiOnly
-                                ) { autoUpdateWifiOnly = it }
-                            }
-                            OutlinedButton(
-                                onClick = {
-                                    engineUpdating = true
-                                    EngineUpdateManager.update(context) { message ->
-                                        engineUpdating = false
-                                        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                                    }
+                    } else {
+                        Column(
+                            modifier = Modifier.fillMaxSize().padding(padding)
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 20.dp, vertical = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Text(
+                                when (settingsSection) {
+                                    "appearance" -> "选择你喜欢的显示方式"
+                                    "format" -> "设置默认下载的媒体类型和容器"
+                                    "advanced" -> "字幕和播放列表的下载行为"
+                                    "storage" -> "下载文件统一保存在本机公共目录"
+                                    "engine" -> "管理本机解析引擎"
+                                    else -> "关于 video-dl"
                                 },
-                                enabled = !engineUpdating && !EngineUpdateManager.isUpdating() &&
-                                    !download.running && !previewLoading,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(14.dp)
-                            ) {
-                                if (engineUpdating) {
-                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("正在更新…")
-                                } else Text("检查并更新 yt-dlp")
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            when (settingsSection) {
+                                "appearance" -> {
+                                    SettingsGroup("外观", "应用的显示方式") {
+                                        ChoiceChipRows(
+                                            options = listOf("system" to "跟随系统", "light" to "浅色", "dark" to "深色"),
+                                            selected = themeMode,
+                                            onSelected = { themeMode = it }
+                                        )
+                                    }
+                                }
+                                "format" -> {
+                                    SettingsGroup("下载格式", "选择视频或音频，以及画质和文件格式") {
+                                        ChoiceChipRows(
+                                            options = listOf("video" to "视频", "audio" to "音频"),
+                                            selected = if (audioOnly) "audio" else "video",
+                                            onSelected = { audioOnly = it == "audio" }
+                                        )
+                                        if (!audioOnly) {
+                                            Text("当前视频可用画质", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            val currentVideoQualities = preview?.qualities.orEmpty()
+                                            if (currentVideoQualities.isEmpty()) {
+                                                Text(
+                                                    if (preview == null) "先在主页解析视频，这里才会显示源站真实提供的画质。"
+                                                    else "当前视频没有返回可识别的画质选项。",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            } else {
+                                                ChoiceChipRows(
+                                                    options = currentVideoQualities.map { it.height.toString() to it.label },
+                                                    selected = maxHeight.toString(),
+                                                    onSelected = {
+                                                        val selectedHeight = it.toIntOrNull() ?: 0
+                                                        maxHeight = selectedHeight
+                                                        preferences.edit().putInt("max_height", selectedHeight).apply()
+                                                    }
+                                                )
+                                            }
+                                            Text("视频格式", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            ChoiceChipRows(
+                                                options = listOf("mp4" to "MP4", "mkv" to "MKV", "webm" to "WebM"),
+                                                selected = videoContainer,
+                                                onSelected = { videoContainer = it }
+                                            )
+                                        } else {
+                                            Text("音频格式", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            ChoiceChipRows(
+                                                options = listOf("mp3" to "MP3", "m4a" to "M4A", "opus" to "Opus", "flac" to "FLAC"),
+                                                selected = audioFormat,
+                                                onSelected = { audioFormat = it }
+                                            )
+                                            SettingsToggleRow(
+                                                title = "嵌入封面图片",
+                                                description = "将视频封面写入音频文件",
+                                                checked = embedThumbnail,
+                                                onCheckedChange = { embedThumbnail = it }
+                                            )
+                                        }
+                                    }
+                                }
+                                "advanced" -> {
+                                    SettingsGroup("字幕与播放列表", "默认仅下载当前视频，避免意外下载整张列表") {
+                                        SettingsToggleRow("同时下载字幕", "包含网站提供的自动字幕", downloadSubtitles) { downloadSubtitles = it }
+                                        if (downloadSubtitles) {
+                                            OutlinedTextField(
+                                                value = subtitleLanguages,
+                                                onValueChange = { subtitleLanguages = it },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                singleLine = true,
+                                                shape = RoundedCornerShape(14.dp),
+                                                label = { Text("字幕语言") },
+                                                placeholder = { Text("all 或 zh-Hans,zh-CN,en") },
+                                                supportingText = { Text("输入 all 下载全部语言，或填写语言代码") }
+                                            )
+                                        }
+                                        SettingsToggleRow("下载整个播放列表", "开启后按顺序下载列表中的视频", downloadPlaylist) { downloadPlaylist = it }
+                                        SettingsToggleRow("跳过已经下载过的视频", "在本机保存 yt-dlp 下载归档", skipExisting) { skipExisting = it }
+                                    }
+                                }
+                                "storage" -> {
+                                    SettingsGroup("下载目录", "video-dl 保存文件的位置") {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.Folder, null, tint = MaterialTheme.colorScheme.primary)
+                                            Spacer(Modifier.width(12.dp))
+                                            Column(Modifier.weight(1f)) {
+                                                Text("Download/video-dl", style = MaterialTheme.typography.titleMedium)
+                                                Text("Android 公共下载目录", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                        }
+                                    }
+                                }
+                                "engine" -> {
+                                    SettingsGroup("下载速度", "较高并发会增加网络和设备负载") {
+                                        ChoiceChipRows(
+                                            options = listOf("1" to "省流量", "4" to "均衡", "8" to "高速"),
+                                            selected = concurrentFragments.toString(),
+                                            onSelected = { concurrentFragments = it.toIntOrNull() ?: 4 }
+                                        )
+                                    }
+                                    SettingsGroup("解析引擎", "网站改版导致解析失败时，可以尝试更新 yt-dlp") {
+                                        SettingsToggleRow(
+                                            "自动更新解析引擎",
+                                            "每周检查一次，只在下载和解析空闲时执行",
+                                            autoUpdateEngine
+                                        ) { autoUpdateEngine = it }
+                                        if (autoUpdateEngine) {
+                                            SettingsToggleRow(
+                                                "仅使用 Wi-Fi 更新",
+                                                "避免自动更新消耗移动数据",
+                                                autoUpdateWifiOnly
+                                            ) { autoUpdateWifiOnly = it }
+                                        }
+                                        OutlinedButton(
+                                            onClick = {
+                                                engineUpdating = true
+                                                EngineUpdateManager.update(context) { message ->
+                                                    engineUpdating = false
+                                                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                                                }
+                                            },
+                                            enabled = !engineUpdating && !EngineUpdateManager.isUpdating() &&
+                                                !download.running && !previewLoading,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(14.dp)
+                                        ) {
+                                            if (engineUpdating) {
+                                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                                Spacer(Modifier.width(8.dp))
+                                                Text("正在更新…")
+                                            } else Text("检查并更新 yt-dlp")
+                                        }
+                                        Text("这只更新本机的网站解析脚本，不会更新 video-dl 应用。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                                else -> {
+                                    SettingsGroup("video-dl", "Android 本地视频与音频下载器") {
+                                        Text("下载解析在本机完成，不经过第三方下载服务器。")
+                                        Text("下载文件保存在 Download/video-dl。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("项目采用 GPL-3.0 开源许可。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
                             }
-                            Text("这只更新本机的网站解析脚本，不会更新 video-dl 应用。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Text("video-dl · 本地视频下载器", modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -2495,17 +2592,91 @@ private fun ChoiceChipRows(
     selected: String,
     onSelected: (String) -> Unit
 ) {
-    options.chunked(3).forEach { rowOptions ->
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            rowOptions.forEach { (value, label) ->
-                FilterChip(
-                    selected = selected == value,
-                    onClick = { onSelected(value) },
-                    label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    modifier = Modifier.weight(1f)
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        options.forEach { (value, label) ->
+            val active = selected == value
+            val corner by animateDpAsState(
+                targetValue = if (active) 28.dp else 12.dp,
+                label = "sealSelectionShape"
+            )
+            val container by animateColorAsState(
+                targetValue = if (active) MaterialTheme.colorScheme.primaryContainer
+                    else MaterialTheme.colorScheme.surfaceContainer,
+                label = "sealSelectionContainer"
+            )
+            val content by animateColorAsState(
+                targetValue = if (active) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurface,
+                label = "sealSelectionContent"
+            )
+            Surface(
+                selected = active,
+                onClick = { onSelected(value) },
+                shape = RoundedCornerShape(corner),
+                color = container,
+                contentColor = content
+            ) {
+                Box(
+                    modifier = Modifier.heightIn(min = 40.dp).padding(horizontal = 16.dp, vertical = 9.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SealSettingTitle(text: String) {
+    Text(
+        modifier = Modifier.padding(top = 32.dp).padding(horizontal = 20.dp, vertical = 16.dp),
+        text = text,
+        style = MaterialTheme.typography.displaySmall
+    )
+}
+
+@Composable
+private fun SealSettingItem(
+    title: String,
+    description: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.padding(end = 16.dp).size(24.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    maxLines = 1,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    description,
+                    maxLines = 2,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-            repeat(3 - rowOptions.size) { Spacer(Modifier.weight(1f)) }
         }
     }
 }
