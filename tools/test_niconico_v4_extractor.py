@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline contract tests for Dog's Niconico v3 / v3_guest / V4 DMS extractor."""
+"""Offline contract tests for VideoFetch's Niconico v3 / v3_guest / V4 DMS extractor."""
 
 import html
 import importlib.util
@@ -106,9 +106,9 @@ sys.modules.update({
 
 plugin_path = (
     Path(__file__).resolve().parents[1]
-    / "app/src/main/assets/yt-dlp-plugins/dog/yt_dlp_plugins/extractor/niconico.py"
+    / "app/src/main/assets/yt-dlp-plugins/videofetch/yt_dlp_plugins/extractor/niconico.py"
 )
-spec = importlib.util.spec_from_file_location("dog_niconico_plugin_test", plugin_path)
+spec = importlib.util.spec_from_file_location("videofetch_niconico_plugin_test", plugin_path)
 plugin_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(plugin_module)
 
@@ -160,10 +160,10 @@ def assert_dms_request(extractor, expected_track_id):
 
 
 # Standard v3 succeeds. The plugin must not unnecessarily use v3_guest.
-standard = plugin_module.DogNiconicoIE(api_responses=[api_response])
+standard = plugin_module.VideoFetchNiconicoIE(api_responses=[api_response])
 standard_result = standard._real_extract(
     "https://www.nicovideo.jp/watch/sm37593092")
-assert standard_result["dog_niconico_api_mode"] == "v3-dms"
+assert standard_result["videofetch_niconico_api_mode"] == "v3-dms"
 assert [item["height"] for item in standard_result["formats"]] == [1080, 720]
 assert len(standard.api_requests) == 1
 standard_url, standard_request = standard.api_requests[0]
@@ -180,10 +180,10 @@ assert standard_request["query"]["t"] == standard_track.split("_", 1)[1]
 assert_dms_request(standard, "track-from-watch-api")
 
 # Standard v3 failure falls back to v3_guest, reusing the actionTrackId.
-guest = plugin_module.DogNiconicoIE(
+guest = plugin_module.VideoFetchNiconicoIE(
     api_responses=[ExtractorError("standard API denied"), api_response])
 guest_result = guest._real_extract("https://www.nicovideo.jp/watch/sm37593092")
-assert guest_result["dog_niconico_api_mode"] == "v3_guest-dms"
+assert guest_result["videofetch_niconico_api_mode"] == "v3_guest-dms"
 assert len(guest.api_requests) == 2
 guest_standard_url, guest_standard_request = guest.api_requests[0]
 guest_url, guest_request = guest.api_requests[1]
@@ -196,14 +196,14 @@ assert_dms_request(guest, "track-from-watch-api")
 wrapper = {"data": {"response": {"$watchV4": {"data": watch_data}}}}
 encoded = html.escape(json.dumps(wrapper), quote=True)
 page = f'<html><head><meta name="server-response" content="{encoded}"></head></html>'
-v4 = plugin_module.DogNiconicoIE(
+v4 = plugin_module.VideoFetchNiconicoIE(
     page,
     api_responses=[
         ExtractorError("standard API denied"),
         ExtractorError("guest API denied"),
     ])
 v4_result = v4._real_extract("https://www.nicovideo.jp/watch/sm37593092")
-assert v4_result["dog_niconico_api_mode"] == "watchV4-dms"
+assert v4_result["videofetch_niconico_api_mode"] == "watchV4-dms"
 assert [item["height"] for item in v4_result["formats"]] == [1080, 720]
 
 print("Niconico v3-first / guest-fallback / V4-DMS contract tests passed")

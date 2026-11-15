@@ -1,4 +1,4 @@
-package com.sxsbsxs.dog;
+package com.sxsbsxs.videofetch;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -12,7 +12,7 @@ import org.json.JSONObject;
  * not the full URL, so signed links and query tokens are not retained.
  */
 public final class DownloadHistoryStore {
-    private static final String PREFS = "dog_history";
+    private static final String PREFS = "videofetch_history";
     private static final String KEY_ITEMS = "items";
     private static final int MAX_ITEMS = 100;
 

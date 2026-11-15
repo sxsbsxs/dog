@@ -1,4 +1,4 @@
-package com.sxsbsxs.dog
+package com.sxsbsxs.videofetch
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow

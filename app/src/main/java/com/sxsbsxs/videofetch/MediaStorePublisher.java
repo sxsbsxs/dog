@@ -1,4 +1,4 @@
-package com.sxsbsxs.dog;
+package com.sxsbsxs.videofetch;
 
 import android.content.ContentResolver;
 import android.content.ContentValues;
@@ -24,7 +24,7 @@ import java.util.zip.CRC32;
  */
 public final class MediaStorePublisher {
     private static final String RELATIVE_DIRECTORY =
-            Environment.DIRECTORY_DOWNLOADS + "/Dog/";
+            Environment.DIRECTORY_DOWNLOADS + "/VideoFetch/";
 
     private MediaStorePublisher() {}
 

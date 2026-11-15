@@ -1,9 +1,9 @@
-package com.sxsbsxs.dog;
+package com.sxsbsxs.videofetch;
 
 /** JNI bridge for the native C/C++ media helpers. */
 public final class NativeMediaProbe {
     static {
-        System.loadLibrary("dogmedia");
+        System.loadLibrary("videofetchmedia");
     }
 
     private NativeMediaProbe() {}

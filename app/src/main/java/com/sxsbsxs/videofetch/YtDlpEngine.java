@@ -1,4 +1,4 @@
-package com.sxsbsxs.dog;
+package com.sxsbsxs.videofetch;
 
 import android.content.Context;
 
@@ -19,7 +19,7 @@ import com.yausername.youtubedl_android.YoutubeDL;
 public final class YtDlpEngine {
     private static volatile boolean initialized;
     private static final String NICONICO_PLUGIN_ASSET =
-            "yt-dlp-plugins/dog/yt_dlp_plugins/extractor/niconico.py";
+            "yt-dlp-plugins/videofetch/yt_dlp_plugins/extractor/niconico.py";
     private static volatile File pluginDirectory;
 
     private YtDlpEngine() {}
@@ -43,9 +43,9 @@ public final class YtDlpEngine {
         if (pluginDirectory != null && pluginDirectory.isDirectory()) return pluginDirectory;
 
         Context appContext = context.getApplicationContext();
-        File root = new File(appContext.getNoBackupFilesDir(), "dog-yt-dlp-plugins");
+        File root = new File(appContext.getNoBackupFilesDir(), "videofetch-yt-dlp-plugins");
         File pluginFile = new File(root,
-                "dog/yt_dlp_plugins/extractor/niconico.py");
+                "videofetch/yt_dlp_plugins/extractor/niconico.py");
         File parent = pluginFile.getParentFile();
         if (parent == null || (!parent.isDirectory() && !parent.mkdirs())) {
             throw new IOException("无法创建 Niconico 解析插件目录");

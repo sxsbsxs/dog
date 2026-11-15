@@ -1,4 +1,4 @@
-package com.sxsbsxs.dog;
+package com.sxsbsxs.videofetch;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -36,7 +36,7 @@ public final class EngineUpdateManager {
      */
     public static boolean updateIfDue(Context context, boolean wifiOnly, Callback callback) {
         Context app = context.getApplicationContext();
-        SharedPreferences preferences = app.getSharedPreferences("dog_settings", Context.MODE_PRIVATE);
+        SharedPreferences preferences = app.getSharedPreferences("videofetch_settings", Context.MODE_PRIVATE);
         if (!preferences.getBoolean("auto_update_engine", true)) return false;
         if (UPDATING.get() || DownloadState.INSTANCE.isRunning() || VideoInfoService.isInspecting()) return false;
 

@@ -1,9 +1,9 @@
-"""Dog's Niconico extractor.
+"""VideoFetch's Niconico extractor.
 
 The browser downloader pattern used as a reference requests the standard v3
 watch API first with browser/session credentials, then retries v3_guest if
 the standard request is rejected. Both paths resolve DMS streams and use the
-real isAvailable flags. Dog's cookie jar is passed by yt-dlp to these requests;
+real isAvailable flags. VideoFetch's cookie jar is passed by yt-dlp to these requests;
 no session or Premium entitlement is fabricated.
 
 For newer watch-page deployments, the $watchV4 server-response payload is a
@@ -22,7 +22,7 @@ from yt_dlp.extractor.niconico import NiconicoIE as _NiconicoIE
 from yt_dlp.utils import ExtractorError, extract_attributes, parse_iso8601
 
 
-class DogNiconicoIE(_NiconicoIE, plugin_name='dog_niconico_v4_dms'):
+class VideoFetchNiconicoIE(_NiconicoIE, plugin_name='videofetch_niconico_v4_dms'):
     _API_HEADERS = {
         'Accept': 'application/json, text/plain, */*',
         'X-Frontend-Id': '6',
@@ -61,7 +61,7 @@ class DogNiconicoIE(_NiconicoIE, plugin_name='dog_niconico_v4_dms'):
             'like_count': counts.get('like'),
             'comment_count': counts.get('comment'),
             'formats': formats,
-            'dog_niconico_api_mode': route,
+            'videofetch_niconico_api_mode': route,
         }
 
     def _get_dms_streams(self, media):
@@ -127,7 +127,7 @@ class DogNiconicoIE(_NiconicoIE, plugin_name='dog_niconico_v4_dms'):
                 Request(endpoint, headers=headers, method='OPTIONS'),
                 video_id, note='Checking Niconico DMS access rights')
         except Exception as error:
-            self.write_debug(f'Dog Niconico: DMS OPTIONS preflight was not accepted: {error}')
+            self.write_debug(f'VideoFetch Niconico: DMS OPTIONS preflight was not accepted: {error}')
 
         access = self._download_json(
             endpoint, video_id, note='Requesting Niconico DMS HLS access rights',
@@ -171,7 +171,7 @@ class DogNiconicoIE(_NiconicoIE, plugin_name='dog_niconico_v4_dms'):
                 expected=True)
         route = 'v3_guest-dms' if guest else 'v3-dms'
         self.write_debug(
-            f'Dog Niconico: {path} API returned {len(formats)} DMS HLS formats')
+            f'VideoFetch Niconico: {path} API returned {len(formats)} DMS HLS formats')
         return self._make_metadata(watch_data, video_id, route, formats)
 
     def _get_watch_response(self, url, video_id):
@@ -201,7 +201,7 @@ class DogNiconicoIE(_NiconicoIE, plugin_name='dog_niconico_v4_dms'):
         formats = self._request_dms_formats(watch_data, video_id)
         if not formats:
             return None
-        self.write_debug(f'Dog Niconico: {route} returned {len(formats)} DMS HLS formats')
+        self.write_debug(f'VideoFetch Niconico: {route} returned {len(formats)} DMS HLS formats')
         return self._make_metadata(watch_data, video_id, route, formats)
 
     def _real_extract(self, url):
@@ -216,7 +216,7 @@ class DogNiconicoIE(_NiconicoIE, plugin_name='dog_niconico_v4_dms'):
             except Exception as error:
                 route = 'v3_guest' if guest else 'v3'
                 self.write_debug(
-                    f'Dog Niconico: {route} DMS route unavailable; '
+                    f'VideoFetch Niconico: {route} DMS route unavailable; '
                     f'{"no further v3 fallback" if guest else "trying v3_guest"} ({error})')
 
         # Watch V4 can be exposed in the HTML server-response even when the
@@ -227,10 +227,10 @@ class DogNiconicoIE(_NiconicoIE, plugin_name='dog_niconico_v4_dms'):
                 return result
         except Exception as error:
             self.write_debug(
-                f'Dog Niconico: watch-page V4/DMS route unavailable ({error})')
+                f'VideoFetch Niconico: watch-page V4/DMS route unavailable ({error})')
 
         # Final compatibility fallback for older or non-DMS videos.
         result = super()._real_extract(url)
-        result['dog_niconico_api_mode'] = (
+        result['videofetch_niconico_api_mode'] = (
             'v3' if super().is_logged_in else 'v3_guest')
         return result
