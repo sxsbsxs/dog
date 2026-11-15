@@ -66,8 +66,6 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Inbox
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Refresh
@@ -559,7 +557,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                             }
                         } else {
                             Image(
-                                painter = painterResource(id = R.mipmap.ic_launcher),
+                                painter = painterResource(id = R.drawable.ic_launcher),
                                 contentDescription = "Dog",
                                 modifier = Modifier.padding(start = 8.dp).size(34.dp)
                             )
@@ -839,7 +837,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                                             color = MaterialTheme.colorScheme.surfaceContainerHighest
                                         ) {
                                             Icon(
-                                                Icons.Default.Schedule,
+                                                Icons.Default.History,
                                                 null,
                                                 modifier = Modifier.padding(8.dp).size(18.dp),
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -957,9 +955,9 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                                 EmptyState(
                                     icon = when (queueFilter) {
                                         "downloading" -> Icons.Default.Download
-                                        "queued" -> Icons.Default.Schedule
+                                        "queued" -> Icons.Default.History
                                         "finished" -> Icons.Default.History
-                                        else -> Icons.Default.Inbox
+                                        else -> Icons.Default.Folder
                                     },
                                     title = when (queueFilter) {
                                         "downloading" -> "没有正在下载的任务"
@@ -1672,7 +1670,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                             capitalization = KeyboardCapitalization.None,
                             imeAction = ImeAction.Go
                         ),
-                        keyboardActions = KeyboardActions(onGo = startPreview),
+                        keyboardActions = KeyboardActions(onGo = { startPreview() }),
                         shape = RoundedCornerShape(18.dp)
                     )
 
