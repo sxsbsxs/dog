@@ -728,8 +728,10 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                                         FilterChip(
                                             selected = true, onClick = { showFormatSheet = true },
                                             label = {
-                                                Text(if (info.qualities.isEmpty()) "画质待确认"
-                                                    else info.qualities.size.toString() + " 种可用画质")
+                                                Text(
+                                                    if (info.formats.none { it.hasVideo }) "画质待确认"
+                                                    else info.formats.count { it.hasVideo }.toString() + " 条视频流"
+                                                )
                                             },
                                             leadingIcon = { Icon(Icons.Default.Tune, null, modifier = Modifier.size(16.dp)) }
                                         )
@@ -824,7 +826,11 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                                         }
                                         Spacer(Modifier.width(12.dp))
                                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                            Text("正在处理视频", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                            Text(
+                                                if (download.audioOnly) "正在下载音频" else "正在下载视频",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
                                             Text(
                                                 if (download.queuedCount > 0) "还有 " + download.queuedCount + " 个等待任务" else "当前队列正在执行",
                                                 style = MaterialTheme.typography.bodySmall,
