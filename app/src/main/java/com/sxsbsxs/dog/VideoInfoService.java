@@ -42,12 +42,14 @@ public final class VideoInfoService {
         public final String extractor;
         public final String thumbnail;
         public final List<QualityOption> qualities;
+        public final List<FormatOption> formats;
         public final String qualityNotice;
         public final int videoFormatCount;
 
         Preview(String title, String uploader, String duration, String resolution,
                 String fileSize, String extractor, String thumbnail,
-                List<QualityOption> qualities, String qualityNotice, int videoFormatCount) {
+                List<QualityOption> qualities, List<FormatOption> formats,
+                String qualityNotice, int videoFormatCount) {
             this.title = title;
             this.uploader = uploader;
             this.duration = duration;
@@ -56,6 +58,7 @@ public final class VideoInfoService {
             this.extractor = extractor;
             this.thumbnail = thumbnail;
             this.qualities = Collections.unmodifiableList(new ArrayList<>(qualities));
+            this.formats = Collections.unmodifiableList(new ArrayList<>(formats));
             this.qualityNotice = qualityNotice;
             this.videoFormatCount = videoFormatCount;
         }
@@ -70,6 +73,39 @@ public final class VideoInfoService {
             this.height = height;
             this.fps = fps;
             this.label = label;
+        }
+    }
+
+    public static final class FormatOption {
+        public final String formatId;
+        public final String ext;
+        public final String vcodec;
+        public final String acodec;
+        public final int width;
+        public final int height;
+        public final int fps;
+        public final long filesize;
+        public final double bitrate;
+        public final boolean hasVideo;
+        public final boolean hasAudio;
+        public final String label;
+        public final String details;
+
+        FormatOption(String formatId, String ext, String vcodec, String acodec,
+                     int width, int height, int fps, long filesize, double bitrate) {
+            this.formatId = formatId;
+            this.ext = ext;
+            this.vcodec = vcodec;
+            this.acodec = acodec;
+            this.width = width;
+            this.height = height;
+            this.fps = fps;
+            this.filesize = filesize;
+            this.bitrate = bitrate;
+            this.hasVideo = !isMissingCodec(vcodec);
+            this.hasAudio = !isMissingCodec(acodec);
+            this.label = buildFormatLabel(this);
+            this.details = buildFormatDetails(this);
         }
     }
 
@@ -117,6 +153,7 @@ public final class VideoInfoService {
 
                 JSONArray rawFormats = root.optJSONArray("formats");
                 List<QualityOption> qualities = buildQualityOptions(rawFormats);
+                List<FormatOption> formats = buildFormatOptions(rawFormats);
                 int videoFormatCount = countVideoFormats(rawFormats);
                 boolean bilibili = isBilibiliUrl(url);
                 boolean hasSessData = hasCookie(cookieFile, "SESSDATA");
@@ -124,7 +161,7 @@ public final class VideoInfoService {
                         bilibili, hasSessData, qualities, videoFormatCount, extractionDiagnostics);
 
                 Preview preview = new Preview(title, uploader, duration, resolution, size,
-                        extractor, thumbnail, qualities, diagnostic, videoFormatCount);
+                        extractor, thumbnail, qualities, formats, diagnostic, videoFormatCount);
                 callback.onSuccess(preview);
             } catch (Throwable failure) {
                 String message = failure.getMessage();
@@ -145,6 +182,90 @@ public final class VideoInfoService {
         int jsonStart = output.indexOf('{');
         if (jsonStart < 0) throw new JSONException("yt-dlp 返回内容中没有格式信息");
         return new JSONObject(output.substring(jsonStart).trim());
+    }
+
+    private static List<FormatOption> buildFormatOptions(JSONArray rawFormats) {
+        List<FormatOption> result = new ArrayList<>();
+        if (rawFormats == null) return result;
+        for (int i = 0; i < rawFormats.length(); i++) {
+            JSONObject item = rawFormats.optJSONObject(i);
+            if (item == null) continue;
+            String id = firstNonEmpty(item.optString("format_id", ""));
+            // Preserve literal IDs only; selector expressions are assembled by Dog.
+            if (!id.matches("[A-Za-z0-9._-]{1,80}")) continue;
+            String vcodec = firstNonEmpty(item.optString("vcodec", ""), "none");
+            String acodec = firstNonEmpty(item.optString("acodec", ""), "none");
+            if (isMissingCodec(vcodec) && isMissingCodec(acodec)) continue;
+            int height = item.optInt("height", 0);
+            if (height <= 0) height = parseHeight(item.optString("resolution", ""));
+            int width = item.optInt("width", 0);
+            int fps = (int) Math.round(item.optDouble("fps", 0.0));
+            long bytes = item.optLong("filesize", 0L);
+            if (bytes <= 0L) bytes = item.optLong("filesize_approx", 0L);
+            double bitrate = item.optDouble("tbr", 0.0);
+            result.add(new FormatOption(
+                    id, firstNonEmpty(item.optString("ext", "")), vcodec, acodec,
+                    width, Math.max(0, height), Math.max(0, fps),
+                    Math.max(0L, bytes), Math.max(0.0, bitrate)
+            ));
+        }
+        Collections.sort(result, (left, right) -> {
+            if (left.hasVideo != right.hasVideo) return left.hasVideo ? -1 : 1;
+            if (left.hasAudio != right.hasAudio) return left.hasAudio ? 1 : -1;
+            int height = Integer.compare(right.height, left.height);
+            if (height != 0) return height;
+            int fps = Integer.compare(right.fps, left.fps);
+            if (fps != 0) return fps;
+            return Double.compare(right.bitrate, left.bitrate);
+        });
+        return result;
+    }
+
+    private static boolean isMissingCodec(String codec) {
+        return codec == null || codec.trim().isEmpty() || "none".equalsIgnoreCase(codec.trim());
+    }
+
+    private static String buildFormatLabel(FormatOption format) {
+        String label = format.hasVideo
+                ? (format.height > 0 ? format.height + "p" : "视频")
+                : "音频";
+        if (format.hasVideo && format.fps >= 48) label += " · " + format.fps + "fps";
+        String codec = codecLabel(format.hasVideo ? format.vcodec : format.acodec);
+        if (!codec.isEmpty()) label += " · " + codec;
+        return label;
+    }
+
+    private static String buildFormatDetails(FormatOption format) {
+        List<String> parts = new ArrayList<>();
+        parts.add("ID " + format.formatId);
+        if (!format.ext.isEmpty()) parts.add(format.ext.toUpperCase(Locale.ROOT));
+        if (format.width > 0 && format.height > 0) parts.add(format.width + "×" + format.height);
+        if (format.filesize > 0L) parts.add(formatSize(format.filesize));
+        else if (format.bitrate > 0.0) parts.add(String.format(Locale.ROOT, "%.0f kb/s", format.bitrate));
+        return join(parts, " · ");
+    }
+
+    private static String codecLabel(String codec) {
+        if (codec == null || codec.isEmpty()) return "";
+        String value = codec.toLowerCase(Locale.ROOT);
+        if (value.startsWith("avc") || value.contains("h264")) return "H.264";
+        if (value.startsWith("hev") || value.startsWith("hvc") || value.contains("h265")) return "H.265";
+        if (value.startsWith("vp09") || value.startsWith("vp9")) return "VP9";
+        if (value.startsWith("av01")) return "AV1";
+        if (value.startsWith("opus")) return "Opus";
+        if (value.startsWith("mp4a") || value.startsWith("aac")) return "AAC";
+        if (value.startsWith("flac")) return "FLAC";
+        return codec.length() > 18 ? codec.substring(0, 18) : codec;
+    }
+
+    private static String join(List<String> values, String separator) {
+        StringBuilder result = new StringBuilder();
+        for (String value : values) {
+            if (value == null || value.isEmpty()) continue;
+            if (result.length() > 0) result.append(separator);
+            result.append(value);
+        }
+        return result.toString();
     }
 
     private static List<QualityOption> buildQualityOptions(JSONArray formats) {
@@ -208,10 +329,7 @@ public final class VideoInfoService {
             boolean bilibili, boolean hasSessData, List<QualityOption> qualities,
             int videoFormatCount, String stderr
     ) {
-        if (bilibili && !hasSessData) {
-            return "未检测到 B 站 SESSDATA 登录凭据，当前可能只能获取到低清画质。请重新完成 B 站授权后再解析。";
-        }
-
+        // Anonymous Bilibili playback can expose HD formats too.
         if (bilibili && stderr != null) {
             Matcher missing = Pattern.compile("Format\\(s\\) (.+?) are missing", Pattern.CASE_INSENSITIVE)
                     .matcher(stderr);
@@ -227,7 +345,7 @@ public final class VideoInfoService {
 
         if (bilibili && qualities.size() == 1 && qualities.get(0).height <= 480) {
             return "B 站本次只返回了 " + qualities.get(0).height +
-                    "p（解析到 " + videoFormatCount + " 个视频格式）。网页能播放更高清晰度但这里没有返回时，通常是授权状态或 B 站接口/解析器限制。";
+                    "p（解析到 " + videoFormatCount + " 个视频格式）。匿名请求也可能获取高清画质；实际结果取决于该视频、访问权限和站点接口返回，登录不保证解锁更高画质。";
         }
         return "";
     }
