@@ -333,6 +333,14 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     var skipExisting by rememberSaveable { mutableStateOf(preferences.getBoolean("skip_existing", false)) }
     var concurrentFragments by rememberSaveable { mutableStateOf(preferences.getInt("concurrent_fragments", 4)) }
     var autoUpdateEngine by rememberSaveable {
+        // Migrate existing installs away from automatic native engine startup.
+        // Users can opt back in from Settings after confirming the app runs reliably.
+        if (!preferences.getBoolean("engine_auto_update_default_migrated_v1", false)) {
+            preferences.edit()
+                .putBoolean("auto_update_engine", false)
+                .putBoolean("engine_auto_update_default_migrated_v1", true)
+                .apply()
+        }
         mutableStateOf(preferences.getBoolean("auto_update_engine", false))
     }
     var autoUpdateWifiOnly by rememberSaveable {
