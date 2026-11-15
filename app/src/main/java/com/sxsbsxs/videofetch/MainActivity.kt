@@ -726,6 +726,27 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
         }
     }
 
+    val copyDownloadDiagnostic: () -> Unit = {
+        val report = download.diagnostic
+        if (report.isBlank()) {
+            Toast.makeText(context, "当前没有可复制的诊断信息", Toast.LENGTH_SHORT).show()
+        } else {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            if (clipboard == null) {
+                Toast.makeText(context, "系统剪贴板不可用", Toast.LENGTH_SHORT).show()
+            } else {
+                clipboard.setPrimaryClip(
+                    android.content.ClipData.newPlainText("VideoFetch 诊断信息（已脱敏）", report)
+                )
+                Toast.makeText(
+                    context,
+                    "已复制诊断信息，Cookie 值和链接参数已自动隐藏",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
     val startPreview: () -> Unit = {
         val value = url.trim()
         if (!isHttpUrl(value)) {
@@ -1367,7 +1388,8 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                 val completed = download.progress == 100
                                 val failed = download.message.startsWith("下载失败")
                                 val youtubeLoginRequired = failed &&
-                                    download.message.contains("YouTube 拦截了当前会话")
+                                    (download.message.contains("YouTube 拦截了当前会话") ||
+                                     download.message.contains("YouTube 仍在拦截"))
                                 SealVideoTaskCard(
                                     title = lastDownloadPreview?.title ?: download.lastUrl,
                                     uploader = lastDownloadPreview?.uploader ?: sourceHost(download.lastUrl),
@@ -1418,6 +1440,12 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                             },
                                             modifier = Modifier.weight(1f)
                                         ) { Text("修改格式") }
+                                        if (failed && download.diagnostic.isNotBlank()) {
+                                            TextButton(
+                                                onClick = copyDownloadDiagnostic,
+                                                modifier = Modifier.weight(1f)
+                                            ) { Text("复制诊断") }
+                                        }
                                     }
                                 )
                             }
@@ -1637,6 +1665,14 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                         color = if (failed) MaterialTheme.colorScheme.error
                                             else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+                                    if (failed && download.diagnostic.isNotBlank()) {
+                                        TextButton(
+                                            onClick = copyDownloadDiagnostic,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text("复制诊断信息（已隐藏 Cookie）")
+                                        }
+                                    }
                                     if (download.outputPath.isNotBlank()) {
                                         Text(
                                             "保存位置：" + download.outputPath,
