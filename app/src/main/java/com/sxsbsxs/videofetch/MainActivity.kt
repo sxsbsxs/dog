@@ -333,7 +333,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     var skipExisting by rememberSaveable { mutableStateOf(preferences.getBoolean("skip_existing", false)) }
     var concurrentFragments by rememberSaveable { mutableStateOf(preferences.getInt("concurrent_fragments", 4)) }
     var autoUpdateEngine by rememberSaveable {
-        mutableStateOf(preferences.getBoolean("auto_update_engine", true))
+        mutableStateOf(preferences.getBoolean("auto_update_engine", false))
     }
     var autoUpdateWifiOnly by rememberSaveable {
         mutableStateOf(preferences.getBoolean("auto_update_wifi_only", true))
