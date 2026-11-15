@@ -66,6 +66,8 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Refresh
@@ -347,6 +349,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
     var showAdvancedDownloadSettings by rememberSaveable { mutableStateOf(false) }
     var settingsReturnTab by rememberSaveable { mutableStateOf(0) }
     val download by DownloadState.state.collectAsState()
+    val inputSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val loginLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -1584,6 +1587,156 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                 }
             }
         }
+        if (showInputSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showInputSheet = false },
+                sheetState = inputSheetState,
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                        .imePadding()
+                        .padding(horizontal = 20.dp)
+                        .padding(top = 8.dp, bottom = 28.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            modifier = Modifier.size(44.dp),
+                            shape = RoundedCornerShape(15.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Icon(
+                                Icons.Default.Link,
+                                contentDescription = null,
+                                modifier = Modifier.padding(11.dp),
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                "新建下载",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "粘贴一个视频链接，选择画质后开始下载",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        IconButton(onClick = { showInputSheet = false }) {
+                            Icon(Icons.Default.Close, contentDescription = "关闭")
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = url,
+                        onValueChange = {
+                            url = it
+                            maxHeight = 0
+                            preferences.edit().putString("last_input_url", it)
+                                .putInt("max_height", 0).apply()
+                            preview = null
+                            previewError = ""
+                            selectedVideoFormatId = ""
+                            selectedAudioFormatId = ""
+                            showFormatSheet = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        placeholder = { Text("粘贴视频链接 https://…") },
+                        leadingIcon = {
+                            Icon(Icons.Default.Link, contentDescription = null)
+                        },
+                        trailingIcon = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = pasteUrl) {
+                                    Icon(Icons.Default.ContentPaste, contentDescription = "粘贴")
+                                }
+                                if (url.isNotBlank()) {
+                                    IconButton(onClick = {
+                                        url = ""
+                                        preview = null
+                                        previewError = ""
+                                        selectedVideoFormatId = ""
+                                        selectedAudioFormatId = ""
+                                    }) {
+                                        Icon(Icons.Default.Close, contentDescription = "清空")
+                                    }
+                                }
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.None,
+                            imeAction = ImeAction.Go
+                        ),
+                        keyboardActions = KeyboardActions(onGo = startPreview),
+                        shape = RoundedCornerShape(18.dp)
+                    )
+
+                    if (previewError.isNotBlank()) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.errorContainer
+                        ) {
+                            Text(
+                                previewError,
+                                modifier = Modifier.padding(13.dp),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "下载内容",
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        ChoiceChipRows(
+                            options = listOf("video" to "视频", "audio" to "音频"),
+                            selected = if (audioOnly) "audio" else "video",
+                            onSelected = { audioOnly = it == "audio" }
+                        )
+                    }
+
+                    Button(
+                        onClick = startPreview,
+                        enabled = url.isNotBlank() && !previewLoading && !engineUpdating &&
+                            !EngineUpdateManager.isUpdating(),
+                        modifier = Modifier.fillMaxWidth().height(54.dp),
+                        shape = RoundedCornerShape(17.dp)
+                    ) {
+                        if (previewLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(19.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(Modifier.width(9.dp))
+                            Text("正在解析…")
+                        } else {
+                            Icon(Icons.Default.Search, contentDescription = null)
+                            Spacer(Modifier.width(9.dp))
+                            Text("解析并选择格式", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    Text(
+                        "解析和下载都在本机完成，网站授权仅保存在设备上。",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
         if (showFormatSheet && preview != null) {
             Dialog(
                 onDismissRequest = { showFormatSheet = false },
