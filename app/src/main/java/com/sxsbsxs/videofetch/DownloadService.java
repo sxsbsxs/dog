@@ -626,29 +626,38 @@ public class DownloadService extends Service {
                 throw firstFailure;
             }
 
-            DownloadState.INSTANCE.updateMessage("TV 客户端不可用，正在尝试 Safari HLS 流…");
-            YoutubeDLRequest safariRequest = buildRequest(url, outputDirectory, task, false, true);
-            applyCookieOptions(safariRequest, temporaryCookieFile);
+            Exception previousFailure = firstFailure;
+            boolean hasAccountCookies = temporaryCookieFile != null ||
+                    !SecureCookieStore.load(getApplicationContext()).trim().isEmpty();
+
+            // Retry without the saved account session. With no cookies, yt-dlp
+            // uses its updated guest client policy (tv_samsung + visionos + web).
+            if (hasAccountCookies) {
+                DownloadState.INSTANCE.updateMessage(
+                        "登录态解析失败，正在尝试公开视频客户端（visionOS）…");
+                YoutubeDLRequest guestRequest =
+                        buildRequest(url, outputDirectory, task, false, true);
+                YouTubeRequestFallback.applyFallback(guestRequest);
+                try {
+                    YoutubeDL.getInstance().execute(
+                            guestRequest, PROCESS_ID, true, progressCallback);
+                    return;
+                } catch (Exception guestFailure) {
+                    guestFailure.addSuppressed(previousFailure);
+                    previousFailure = guestFailure;
+                }
+            }
+
+            // Keep isolated Safari HLS as a final, independent route.
+            DownloadState.INSTANCE.updateMessage("公开视频客户端不可用，最后尝试 Safari HLS…");
+            YoutubeDLRequest safariRequest =
+                    buildRequest(url, outputDirectory, task, false, true);
             YouTubeRequestFallback.applyHlsFallback(safariRequest);
             try {
                 YoutubeDL.getInstance().execute(safariRequest, PROCESS_ID, true, progressCallback);
-                return;
             } catch (Exception safariFailure) {
-                // Some account cookies are stale or trigger a logged-in client
-                // challenge. Retry public Safari HLS without account cookies.
-                DownloadState.INSTANCE.updateMessage(
-                        "登录态 Safari 不可用，正在尝试不带账号 Cookie 的公开 HLS…");
-                YoutubeDLRequest guestSafariRequest =
-                        buildRequest(url, outputDirectory, task, false, true);
-                YouTubeRequestFallback.applyHlsFallback(guestSafariRequest);
-                try {
-                    YoutubeDL.getInstance().execute(
-                            guestSafariRequest, PROCESS_ID, true, progressCallback);
-                } catch (Exception guestFailure) {
-                    guestFailure.addSuppressed(safariFailure);
-                    guestFailure.addSuppressed(firstFailure);
-                    throw guestFailure;
-                }
+                safariFailure.addSuppressed(previousFailure);
+                throw safariFailure;
             }
         }
     }
