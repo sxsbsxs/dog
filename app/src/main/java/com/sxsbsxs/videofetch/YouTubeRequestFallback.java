@@ -9,15 +9,15 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * A narrowly-scoped retry for YouTube's "not a bot" gate.
+ * Shared YouTube-specific request policy for metadata inspection and downloads.
  *
- * Keep yt-dlp's default client order as the first choice (it generally offers
- * the best format coverage). Only after the known bot challenge do we retry
- * with clients that can expose alternate, sometimes HLS-backed formats.
+ * youtubedl-android 0.18.1 already injects its bundled QuickJS binary into every
+ * yt-dlp invocation. We additionally request yt-dlp's EJS scripts from GitHub,
+ * then retry with independent clients so extractor-args from one attempt cannot
+ * leak into the next.
  */
 public final class YouTubeRequestFallback {
-    public static final String FALLBACK_EXTRACTOR_ARGS =
-            "youtube:player_client=tv,web_safari";
+    private static final String EJS_REMOTE_COMPONENT = "ejs:github";
 
     private YouTubeRequestFallback() {}
 
@@ -34,6 +34,28 @@ public final class YouTubeRequestFallback {
         }
     }
 
+    /** Enables yt-dlp's current JavaScript challenge components on YouTube requests. */
+    public static void applyCommonOptions(YoutubeDLRequest request) {
+        request.addOption("--remote-components", EJS_REMOTE_COMPONENT);
+    }
+
+    /** A no-PO-Token client that can still expose account-aware formats. */
+    public static void applyFallback(YoutubeDLRequest request) {
+        applyClient(request, "tv");
+    }
+
+    /** Safari's HLS formats can be a useful final route when GVS PO Tokens are unavailable. */
+    public static void applyHlsFallback(YoutubeDLRequest request) {
+        applyClient(request, "web_safari");
+    }
+
+    public static void applyClient(YoutubeDLRequest request, String client) {
+        if (!"tv".equals(client) && !"web_safari".equals(client)) {
+            throw new IllegalArgumentException("Unsupported YouTube fallback client");
+        }
+        request.addOption("--extractor-args", "youtube:player_client=" + client);
+    }
+
     public static boolean isBotChallenge(String value) {
         if (value == null || value.isEmpty()) return false;
         String normalized = value.toLowerCase(Locale.ROOT)
@@ -42,6 +64,29 @@ public final class YouTubeRequestFallback {
         return normalized.contains("sign in to confirm you're not a bot") ||
                 normalized.contains("confirm you're not a bot") ||
                 normalized.contains("not a bot");
+    }
+
+    public static boolean isPoTokenFailure(String value) {
+        if (value == null || value.isEmpty()) return false;
+        String normalized = value.toLowerCase(Locale.ROOT);
+        return normalized.contains("po token") ||
+                normalized.contains("po_token") ||
+                normalized.contains("proof of origin") ||
+                normalized.contains("pot provider");
+    }
+
+    public static boolean isHttp403(String value) {
+        if (value == null || value.isEmpty()) return false;
+        String normalized = value.toLowerCase(Locale.ROOT);
+        return normalized.contains("http error 403") ||
+                normalized.contains("http 403") ||
+                normalized.contains("403 forbidden") ||
+                normalized.contains("status code 403") ||
+                normalized.contains("error 403");
+    }
+
+    public static boolean isRetryableFailure(String value) {
+        return isBotChallenge(value) || isPoTokenFailure(value) || isHttp403(value);
     }
 
     public static boolean isBotChallenge(Throwable failure) {
@@ -60,16 +105,38 @@ public final class YouTubeRequestFallback {
     }
 
     public static boolean shouldRetry(String url, Throwable failure, String diagnostics) {
-        return isYoutubeUrl(url) &&
-                (isBotChallenge(failure) || isBotChallenge(diagnostics));
+        if (!isYoutubeUrl(url)) return false;
+        if (failure != null) {
+            Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+            Throwable current = failure;
+            while (current != null && visited.add(current)) {
+                if (isRetryableFailure(current.getMessage()) ||
+                        isRetryableFailure(current.toString())) return true;
+                for (Throwable suppressed : current.getSuppressed()) {
+                    if (isRetryableFailure(suppressed == null ? null : suppressed.toString())) return true;
+                }
+                current = current.getCause();
+            }
+        }
+        return isRetryableFailure(diagnostics);
     }
 
-    public static void applyFallback(YoutubeDLRequest request) {
-        request.addOption("--extractor-args", FALLBACK_EXTRACTOR_ARGS);
+    public static String userMessage(String diagnostics) {
+        if (isPoTokenFailure(diagnostics)) {
+            return "YouTube 要求 PO Token。Cookie 和登录状态不能代替它；当前版本会尝试兼容客户端，" +
+                    "但尚未配置动态 PO Token Provider，因此部分视频仍可能无法下载。";
+        }
+        if (isBotChallenge(diagnostics)) {
+            return "YouTube 仍在拦截当前会话或网络出口。Cookie 已传递，应用已尝试 TV 与 Safari HLS 客户端；" +
+                    "若继续失败，可能需要 PO Token Provider，或当前网络出口已被限制。";
+        }
+        if (isHttp403(diagnostics)) {
+            return "YouTube 返回 HTTP 403。可能是媒体请求缺少 PO Token、播放地址过期，或网络出口受到限制；反复登录不一定能解决。";
+        }
+        return userMessage();
     }
 
     public static String userMessage() {
-        return "YouTube 拦截了当前会话或网络请求。请先在“网站登录与 Cookie”登录 YouTube，" +
-                "也可导入浏览器导出的 cookies.txt；应用已尝试备用客户端。若仍失败，可能是网络出口/IP 风控，Cookie 不保证能解除限制。";
+        return "YouTube 拦截了当前请求。应用会尝试备用客户端；登录 Cookie 不保证能解除机器人验证或 IP 风控。";
     }
 }
