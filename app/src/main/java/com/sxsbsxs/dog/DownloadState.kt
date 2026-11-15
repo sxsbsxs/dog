@@ -9,7 +9,8 @@ data class DownloadUiState(
     val progressKnown: Boolean = false,
     val message: String = "粘贴视频链接即可开始",
     val outputPath: String = "",
-    val queuedCount: Int = 0
+    val queuedCount: Int = 0,
+    val formatLabel: String = ""
 )
 
 object DownloadState {
@@ -21,10 +22,15 @@ object DownloadState {
     }
 
     fun started(queuedCount: Int) {
+        started(queuedCount, "")
+    }
+
+    fun started(queuedCount: Int, formatLabel: String) {
         mutableState.value = DownloadUiState(
             running = true,
             message = if (queuedCount > 0) "正在准备下载 · 后面还有 $queuedCount 个任务" else "正在准备下载…",
-            queuedCount = queuedCount
+            queuedCount = queuedCount,
+            formatLabel = formatLabel
         )
     }
 
@@ -70,15 +76,22 @@ object DownloadState {
             progressKnown = true,
             message = message,
             outputPath = path,
-            queuedCount = 0
+            queuedCount = 0,
+            formatLabel = mutableState.value.formatLabel
         )
     }
 
     fun failed(message: String) {
-        mutableState.value = DownloadUiState(message = message)
+        mutableState.value = DownloadUiState(
+            message = message,
+            formatLabel = mutableState.value.formatLabel
+        )
     }
 
     fun canceled() {
-        mutableState.value = DownloadUiState(message = "已取消下载")
+        mutableState.value = DownloadUiState(
+            message = "已取消下载",
+            formatLabel = mutableState.value.formatLabel
+        )
     }
 }
