@@ -636,10 +636,26 @@ public class DownloadService extends Service {
                 YouTubeRequestFallback.applyHlsFallback(safariRequest);
                 try {
                     YoutubeDL.getInstance().execute(safariRequest, PROCESS_ID, true, progressCallback);
+                    return;
                 } catch (Exception safariFailure) {
-                    safariFailure.addSuppressed(tvFailure);
-                    safariFailure.addSuppressed(firstFailure);
-                    throw safariFailure;
+                    // Some accounts have stale/rotated cookies or cookies that
+                    // cause YouTube's logged-in web client flow to be rejected.
+                    // A public Safari HLS attempt without account cookies is a
+                    // useful last fallback for videos that are publicly playable.
+                    DownloadState.INSTANCE.updateMessage(
+                            "登录态 Safari 不可用，正在尝试不带账号 Cookie 的公开 HLS…");
+                    YoutubeDLRequest guestSafariRequest =
+                            buildRequest(url, outputDirectory, task, false, true);
+                    YouTubeRequestFallback.applyHlsFallback(guestSafariRequest);
+                    try {
+                        YoutubeDL.getInstance().execute(
+                                guestSafariRequest, PROCESS_ID, true, progressCallback);
+                    } catch (Exception guestFailure) {
+                        guestFailure.addSuppressed(safariFailure);
+                        guestFailure.addSuppressed(tvFailure);
+                        guestFailure.addSuppressed(firstFailure);
+                        throw guestFailure;
+                    }
                 }
             }
         }
