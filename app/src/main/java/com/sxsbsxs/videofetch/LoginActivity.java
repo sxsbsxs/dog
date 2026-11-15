@@ -53,6 +53,8 @@ public class LoginActivity extends Activity {
     private String loginUrl;
     private boolean saving;
     private boolean pageError;
+    private boolean preparingYoutubeCookieExport;
+    private boolean youtubeCookieExportPrepared;
     private Dialog popupDialog;
     private WebView popupWebView;
 
@@ -163,8 +165,16 @@ public class LoginActivity extends Activity {
                 super.onReceivedError(view, request, error);
                 if (!popup && request.isForMainFrame() && statusText != null) {
                     pageError = true;
-                    statusText.setText("网页加载失败：" + error.getDescription() +
-                            "。请检查网络，或该网站是否限制应用内登录。");
+                    if (preparingYoutubeCookieExport) {
+                        preparingYoutubeCookieExport = false;
+                        saving = false;
+                        finishButton.setEnabled(true);
+                        finishButton.setText("完成授权");
+                        statusText.setText("YouTube robots.txt 页面未能加载，暂未导出 Cookie。请检查网络后重试。");
+                    } else {
+                        statusText.setText("网页加载失败：" + error.getDescription() +
+                                "。请检查网络，或该网站是否限制应用内登录。");
+                    }
                 }
             }
 
@@ -178,8 +188,17 @@ public class LoginActivity extends Activity {
                 if (!popup && request.isForMainFrame() && response.getStatusCode() >= 400 &&
                         statusText != null) {
                     pageError = true;
-                    statusText.setText("网站返回 HTTP " + response.getStatusCode() +
-                            "。可能需要更新网页、重新登录，或该站点不允许内嵌登录。");
+                    if (preparingYoutubeCookieExport) {
+                        preparingYoutubeCookieExport = false;
+                        saving = false;
+                        finishButton.setEnabled(true);
+                        finishButton.setText("完成授权");
+                        statusText.setText("YouTube robots.txt 返回 HTTP " + response.getStatusCode() +
+                                "，暂未导出 Cookie。请更换网络后重试。");
+                    } else {
+                        statusText.setText("网站返回 HTTP " + response.getStatusCode() +
+                                "。可能需要更新网页、重新登录，或该站点不允许内嵌登录。");
+                    }
                 }
             }
 
@@ -195,8 +214,15 @@ public class LoginActivity extends Activity {
                 super.onPageFinished(view, url);
                 rememberVisitedUrl(url);
                 CookieManager.getInstance().flush();
+                if (!popup && preparingYoutubeCookieExport && isYoutubeRobotsUrl(url)) {
+                    preparingYoutubeCookieExport = false;
+                    youtubeCookieExportPrepared = true;
+                    statusText.setText("已访问 YouTube robots.txt，正在立即加密保存登录状态…");
+                    exportCurrentCookies();
+                    return;
+                }
                 if (!popup && statusText != null && !saving && !pageError) {
-                    statusText.setText("网页已加载。登录成功后点击“完成授权”；不支持内嵌登录的网站可能会提示使用其他浏览器。");
+                    statusText.setText("网页已加载。登录成功后点击“完成授权”；YouTube 会在导出前自动固定当前登录会话。");
                 }
             }
         });
@@ -256,9 +282,25 @@ public class LoginActivity extends Activity {
         if (saving) return;
         saving = true;
         finishButton.setEnabled(false);
+
+        // yt-dlp documents that YouTube rotates account cookies on open tabs.
+        // Visit robots.txt in this same WebView session immediately before
+        // export, then close the activity as soon as the encrypted jar is saved.
+        if (isYoutubeLogin() && !youtubeCookieExportPrepared) {
+            preparingYoutubeCookieExport = true;
+            finishButton.setText("正在准备导出…");
+            statusText.setText("正在固定 YouTube 登录会话（robots.txt），随后会立即保存并关闭授权页…");
+            webView.loadUrl("https://www.youtube.com/robots.txt");
+            return;
+        }
+        exportCurrentCookies();
+    }
+
+    private void exportCurrentCookies() {
+        saving = true;
+        finishButton.setEnabled(false);
         finishButton.setText("正在保存…");
         statusText.setText("正在读取本机网页登录状态并加密保存，请稍候…");
-
         CookieManager.getInstance().flush();
         exporter.execute(() -> {
             try {
@@ -289,6 +331,28 @@ public class LoginActivity extends Activity {
         return view == webView;
     }
 
+    private boolean isYoutubeLogin() {
+        try {
+            Uri uri = Uri.parse(loginUrl);
+            String host = uri.getHost();
+            return host != null && (host.equalsIgnoreCase("youtube.com") ||
+                    host.toLowerCase(Locale.ROOT).endsWith(".youtube.com"));
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private boolean isYoutubeRobotsUrl(String value) {
+        try {
+            Uri uri = Uri.parse(value);
+            String host = uri.getHost();
+            return host != null && host.equalsIgnoreCase("www.youtube.com") &&
+                    "/robots.txt".equals(uri.getPath());
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
     private void rememberVisitedUrl(String value) {
         if (value == null || value.isEmpty()) return;
         try {
@@ -309,6 +373,8 @@ public class LoginActivity extends Activity {
     private void showSaveError(String message) {
         runOnUiThread(() -> {
             saving = false;
+            preparingYoutubeCookieExport = false;
+            youtubeCookieExportPrepared = false;
             finishButton.setEnabled(true);
             finishButton.setText("完成授权");
             statusText.setText(message == null ? "没有找到有效的登录信息，请先登录网站。" : message);
