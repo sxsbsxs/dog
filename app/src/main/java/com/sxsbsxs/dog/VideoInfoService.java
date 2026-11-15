@@ -230,7 +230,12 @@ public final class VideoInfoService {
                 ? (format.height > 0 ? format.height + "p" : "视频")
                 : "音频";
         if (format.hasVideo && format.fps >= 48) label += " · " + format.fps + "fps";
-        String codec = codecLabel(format.hasVideo ? format.vcodec : format.acodec);
+        String codec;
+        if (format.hasVideo && format.hasAudio) {
+            codec = codecLabel(format.vcodec) + " + " + codecLabel(format.acodec);
+        } else {
+            codec = codecLabel(format.hasVideo ? format.vcodec : format.acodec);
+        }
         if (!codec.isEmpty()) label += " · " + codec;
         return label;
     }
@@ -344,8 +349,10 @@ public final class VideoInfoService {
         }
 
         if (bilibili && qualities.size() == 1 && qualities.get(0).height <= 480) {
+            String accessState = hasSessData ? "已检测到登录凭据" : "当前为匿名访问";
             return "B 站本次只返回了 " + qualities.get(0).height +
-                    "p（解析到 " + videoFormatCount + " 个视频格式）。匿名请求也可能获取高清画质；实际结果取决于该视频、访问权限和站点接口返回，登录不保证解锁更高画质。";
+                    "p（解析到 " + videoFormatCount + " 个视频格式，" + accessState +
+                    "）。匿名请求也可能获取高清画质；实际结果取决于该视频、权限和站点接口，登录不保证解锁更高画质。";
         }
         return "";
     }
