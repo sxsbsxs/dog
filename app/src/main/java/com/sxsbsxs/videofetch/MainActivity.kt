@@ -3140,6 +3140,7 @@ private fun MediaPlaybackScreen(
             playWhenReady = true
         }
     }
+    val exoPlayer = player
     DisposableEffect(player) {
         onDispose { player.release() }
     }
@@ -3207,11 +3208,11 @@ private fun MediaPlaybackScreen(
                 AndroidView(
                     factory = { viewContext ->
                         PlayerControlView(viewContext).apply {
-                            player = this@MediaPlaybackScreen.run { player }
+                            this.player = exoPlayer
                             setShowTimeoutMs(0)
                         }
                     },
-                    update = { it.player = player },
+                    update = { it.player = exoPlayer },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -3219,12 +3220,12 @@ private fun MediaPlaybackScreen(
             AndroidView(
                 factory = { viewContext ->
                     PlayerView(viewContext).apply {
-                        player = this@MediaPlaybackScreen.run { player }
+                        this.player = exoPlayer
                         useController = true
                         setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
                     }
                 },
-                update = { it.player = player },
+                update = { it.player = exoPlayer },
                 modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
                     .background(Color.Black)
             )
