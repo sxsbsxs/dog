@@ -377,21 +377,22 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val drawerScope = rememberCoroutineScope()
-    val navigateFromDrawer: (Int) -> Unit = { destination ->
-        if (destination == 1) historyJson = DownloadHistoryStore.read(context)
-        if (destination == 2) {
-            authorizedSites = SecureCookieStore.listAuthorizedSites(context)
-            hasCookieJar = SecureCookieStore.hasCookieJar(context)
-        }
-        selectedTab = destination
-        drawerScope.launch { drawerState.close() }
-    }
     var url by rememberSaveable { mutableStateOf(initialUrl.orEmpty()) }
     var hasCookieJar by remember { mutableStateOf(SecureCookieStore.hasCookieJar(context)) }
     var authorizedSites by remember { mutableStateOf(SecureCookieStore.listAuthorizedSites(context)) }
     var historyJson by remember { mutableStateOf(DownloadHistoryStore.read(context)) }
     var historySearchQuery by rememberSaveable { mutableStateOf("") }
     var historyFilter by rememberSaveable { mutableStateOf("all") }
+    val navigateFromDrawer: (Int) -> Unit = { destination ->
+        if (destination == 1) historyJson = DownloadHistoryStore.read(context)
+        if (destination == 2) {
+            authorizedSites = SecureCookieStore.listAuthorizedSites(context)
+            hasCookieJar = SecureCookieStore.hasCookieJar(context)
+        }
+        if (destination == 4) settingsReturnTab = selectedTab
+        selectedTab = destination
+        drawerScope.launch { drawerState.close() }
+    }
 
     var audioOnly by rememberSaveable { mutableStateOf(preferences.getBoolean("audio_only", false)) }
     var maxHeight by rememberSaveable { mutableStateOf(preferences.getInt("max_height", 0)) }
@@ -470,7 +471,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     LaunchedEffect(initialUrl) {
         if (!initialUrl.isNullOrBlank()) {
             url = initialUrl
-            showInputSheet = false
+            showInputSheet = true
             maxHeight = 0
             selectedVideoFormatId = ""
             selectedAudioFormatId = ""
