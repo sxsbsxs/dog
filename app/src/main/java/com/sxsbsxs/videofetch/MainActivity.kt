@@ -153,6 +153,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Date
 import java.util.Locale
+import com.sxsbsxs.videofetch.ui.component.SealSettingItem
 import com.sxsbsxs.videofetch.ui.component.SelectionGroupItem
 import com.sxsbsxs.videofetch.ui.component.SelectionGroupRow
 import com.sxsbsxs.videofetch.ui.svg.download
@@ -2806,57 +2807,6 @@ private fun ChoiceChipRows(
                 onClick = { onSelected(value) }
             ) {
                 Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-    }
-}
-
-@Composable
-private fun SealSettingTitle(text: String) {
-    Text(
-        modifier = Modifier.padding(top = 32.dp).padding(horizontal = 20.dp, vertical = 16.dp),
-        text = text,
-        style = MaterialTheme.typography.displaySmall
-    )
-}
-
-@Composable
-private fun SealSettingItem(
-    title: String,
-    description: String,
-    icon: ImageVector,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        color = MaterialTheme.colorScheme.surface
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.padding(end = 16.dp).size(24.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    title,
-                    maxLines = 1,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    description,
-                    maxLines = 2,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    overflow = TextOverflow.Ellipsis
-                )
             }
         }
     }
