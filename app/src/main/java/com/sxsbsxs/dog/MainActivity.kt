@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -331,6 +332,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
     var previewError by remember { mutableStateOf("") }
     var engineUpdating by remember { mutableStateOf(false) }
     var showFormatSheet by rememberSaveable { mutableStateOf(false) }
+    var showAdvancedDownloadSettings by rememberSaveable { mutableStateOf(false) }
     var settingsReturnTab by rememberSaveable { mutableStateOf(0) }
     val formatSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val download by DownloadState.state.collectAsState()
@@ -341,7 +343,32 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
         authorizedSites = SecureCookieStore.listAuthorizedSites(context)
         hasCookieJar = SecureCookieStore.hasCookieJar(context)
         if (result.resultCode == Activity.RESULT_OK) {
-            Toast.makeText(context, "网站授权已保存在本机", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "授权已保存，正在重新获取可用画质…", Toast.LENGTH_SHORT).show()
+            val target = url.trim()
+            if (isHttpUrl(target)) {
+                previewLoading = true
+                showFormatSheet = false
+                VideoInfoService.inspect(context, target, object : VideoInfoService.Callback {
+                    override fun onSuccess(result: VideoInfoService.Preview) {
+                        previewLoading = false
+                        if (url.trim() == target) {
+                            selectedVideoFormatId = ""
+                            selectedAudioFormatId = bestAudioFormat(result.formats)?.formatId.orEmpty()
+                            maxHeight = 0
+                            preferences.edit().putInt("max_height", 0).apply()
+                            preview = result
+                            previewError = ""
+                            showFormatSheet = true
+                        }
+                    }
+
+                    override fun onError(message: String) {
+                        previewLoading = false
+                        previewError = message
+                        Toast.makeText(context, "重新解析失败：" + message, Toast.LENGTH_LONG).show()
+                    }
+                })
+            }
         }
     }
 
@@ -432,13 +459,11 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                 override fun onSuccess(result: VideoInfoService.Preview) {
                     previewLoading = false
                     if (url.trim() == value) {
-                        val defaultVideo = bestVideoFormat(result.formats)
                         val defaultAudio = bestAudioFormat(result.formats)
-                        selectedVideoFormatId = defaultVideo?.formatId.orEmpty()
+                        selectedVideoFormatId = ""
                         selectedAudioFormatId = defaultAudio?.formatId.orEmpty()
-                        val actualDefaultHeight = defaultVideo?.height ?: 0
-                        maxHeight = actualDefaultHeight
-                        preferences.edit().putInt("max_height", actualDefaultHeight).apply()
+                        maxHeight = 0
+                        preferences.edit().putInt("max_height", 0).apply()
                         preview = result
                         showFormatSheet = true
                     }
