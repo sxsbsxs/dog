@@ -1518,9 +1518,6 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                             contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 28.dp)
                         ) {
                             item {
-                                SealSettingTitle("设置")
-                            }
-                            item {
                                 SealSettingItem(
                                     title = "外观",
                                     description = "主题颜色、浅色和深色模式",
@@ -3012,12 +3009,12 @@ private fun HistoryRow(
                     }
                 }
             }
-            Box {
-                IconButton(onClick = { expanded = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "文件操作")
-                }
-                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                    if (item.location.startsWith("content://")) {
+            if (item.location.startsWith("content://")) {
+                Box {
+                    IconButton(onClick = { expanded = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "文件操作")
+                    }
+                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                         DropdownMenuItem(
                             text = { Text("打开文件") },
                             leadingIcon = { Icon(Icons.Default.Folder, null) },
