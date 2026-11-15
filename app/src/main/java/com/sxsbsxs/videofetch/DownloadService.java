@@ -473,7 +473,7 @@ public class DownloadService extends Service {
         if (detail.length() > 1800) detail = detail.substring(detail.length() - 1800);
         String normalized = detail.toLowerCase(java.util.Locale.ROOT);
         String friendly;
-        String combinedDiagnostics = detail + "\\n" + processOutputTail;
+        String combinedDiagnostics = detail + "\n" + processOutputTail;
         if (YouTubeRequestFallback.isRetryableFailure(combinedDiagnostics)) {
             friendly = YouTubeRequestFallback.userMessage(combinedDiagnostics);
         } else if (normalized.contains("unsupported url") ||
