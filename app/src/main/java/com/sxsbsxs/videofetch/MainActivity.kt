@@ -1783,7 +1783,9 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                 7 -> {
                     val allMediaItems = remember(historyJson) {
                         parseDownloadHistory(historyJson).filter {
-                            it.location.isNotBlank() && it.statusLabel.contains("完成")
+                            it.location.isNotBlank() &&
+                                it.statusLabel.contains("完成") &&
+                                isPlayableMediaItem(it)
                         }
                     }
                     val visibleMediaItems = remember(allMediaItems, mediaFilter) {
@@ -3432,6 +3434,21 @@ private fun isAudioHistoryItem(item: DownloadHistoryItem): Boolean {
         extension in setOf("mp3", "m4a", "aac", "opus", "flac", "wav", "ogg")
 }
 
+private fun isPlayableMediaItem(item: DownloadHistoryItem): Boolean {
+    val extension = item.fileName.substringAfterLast('.', "").lowercase(Locale.ROOT)
+    val videoExtensions = setOf(
+        "mp4", "m4v", "mkv", "webm", "mov", "3gp", "ts", "mpeg", "mpg", "avi"
+    )
+    val audioExtensions = setOf(
+        "mp3", "m4a", "aac", "opus", "flac", "wav", "ogg", "oga"
+    )
+    if (extension in videoExtensions || extension in audioExtensions) return true
+    // SAF imports can legitimately have no file extension; the picker supplies
+    // the MIME-derived type label for those entries.
+    return extension.isBlank() &&
+        (item.formatLabel == "视频" || item.formatLabel == "音频")
+}
+
 @OptIn(UnstableApi::class)
 @Composable
 private fun MediaPlaybackScreen(
@@ -3684,7 +3701,7 @@ private fun HistoryRow(
                     }
                 }
             }
-            if (item.location.isNotBlank()) {
+            if (item.location.isNotBlank() && isPlayableMediaItem(item)) {
                 IconButton(onClick = onPlay) {
                     Icon(
                         Icons.Default.PlayArrow,
