@@ -311,9 +311,19 @@ public final class VideoInfoService {
                 try {
                     return YoutubeDL.getInstance().execute(safariRequest, null, false, null);
                 } catch (Exception safariFailure) {
-                    safariFailure.addSuppressed(tvFailure);
-                    safariFailure.addSuppressed(firstFailure);
-                    throw safariFailure;
+                    // Retry public Safari HLS without account cookies in case
+                    // the saved YouTube session is stale or rejected.
+                    YoutubeDLRequest guestSafariRequest =
+                            createInfoRequest(app, url, null, "web_safari");
+                    try {
+                        return YoutubeDL.getInstance().execute(
+                                guestSafariRequest, null, false, null);
+                    } catch (Exception guestFailure) {
+                        guestFailure.addSuppressed(safariFailure);
+                        guestFailure.addSuppressed(tvFailure);
+                        guestFailure.addSuppressed(firstFailure);
+                        throw guestFailure;
+                    }
                 }
             }
         }
