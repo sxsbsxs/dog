@@ -1,4 +1,4 @@
-package com.sxsbsxs.dog;
+package com.sxsbsxs.videofetch;
 
 import android.content.Context;
 
@@ -174,7 +174,7 @@ public final class VideoInfoService {
                 boolean hasNiconicoSession = hasCookieForHost(
                         cookieFile, "user_session", "www.nicovideo.jp");
                 String niconicoApiMode = niconico
-                        ? root.optString("dog_niconico_api_mode", "")
+                        ? root.optString("videofetch_niconico_api_mode", "")
                         : "";
                 String diagnostic = buildQualityNotice(
                         bilibili, hasSessData, niconico, hasNiconicoSession, niconicoApiMode,
@@ -213,7 +213,7 @@ public final class VideoInfoService {
             JSONObject item = rawFormats.optJSONObject(i);
             if (item == null) continue;
             String id = firstNonEmpty(item.optString("format_id", ""));
-            // Preserve literal IDs only; selector expressions are assembled by Dog.
+            // Preserve literal IDs only; selector expressions are assembled by VideoFetch.
             if (!id.matches("[A-Za-z0-9._-]{1,80}")) continue;
             String vcodec = firstNonEmpty(item.optString("vcodec", ""), "none");
             String acodec = firstNonEmpty(item.optString("acodec", ""), "none");
@@ -370,7 +370,7 @@ public final class VideoInfoService {
         if (qualities.isEmpty()) {
             if (niconico) {
                 return "Niconico " + niconicoRouteLabel(niconicoApiMode) +
-                        "没有返回可用视频流。Dog 会尝试使用上游 v3/v3_guest 提取器；请检查视频可用性和账号权限。";
+                        "没有返回可用视频流。VideoFetch 会尝试使用上游 v3/v3_guest 提取器；请检查视频可用性和账号权限。";
             }
             return "解析器没有收到可用的视频画质列表；下载时会由源站选择默认格式。";
         }
@@ -386,7 +386,7 @@ public final class VideoInfoService {
         }
         if (niconico && highestHeight > 720 && !hasNiconicoSession) {
             return "匿名页面解析实际返回了 " + highestHeight +
-                    "p 流；Dog 将使用解析器返回的真实流，不会用 1080p 标签伪造画质。";
+                    "p 流；VideoFetch 将使用解析器返回的真实流，不会用 1080p 标签伪造画质。";
         }
 
         if (bilibili && qualities.size() == 1 && qualities.get(0).height <= 480) {

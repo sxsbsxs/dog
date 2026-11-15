@@ -1,4 +1,4 @@
-package com.sxsbsxs.dog;
+package com.sxsbsxs.videofetch;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -44,14 +44,14 @@ public class DownloadService extends Service {
     public static final String EXTRA_FORMAT_SELECTOR = "extra_format_selector";
     public static final String EXTRA_AUDIO_ONLY = "extra_audio_only";
     public static final String EXTRA_FORMAT_LABEL = "extra_format_label";
-    public static final String ACTION_CANCEL = "com.sxsbsxs.dog.CANCEL_DOWNLOAD";
-    public static final String ACTION_CLEAR_QUEUE = "com.sxsbsxs.dog.CLEAR_DOWNLOAD_QUEUE";
+    public static final String ACTION_CANCEL = "com.sxsbsxs.videofetch.CANCEL_DOWNLOAD";
+    public static final String ACTION_CLEAR_QUEUE = "com.sxsbsxs.videofetch.CLEAR_DOWNLOAD_QUEUE";
 
-    private static final String TAG = "DogDownload";
-    private static final String CHANNEL_ID = "dog_downloads";
+    private static final String TAG = "VideoFetchDownload";
+    private static final String CHANNEL_ID = "videofetch_downloads";
     private static final int NOTIFICATION_ID = 7421;
     private static final int CANCEL_REQUEST_ID = 7422;
-    private static final String PROCESS_ID = "dog-download-process";
+    private static final String PROCESS_ID = "videofetch-download-process";
     private static final java.util.regex.Pattern DOWNLOAD_PROGRESS_PATTERN =
             java.util.regex.Pattern.compile("(?i)\\[download\\]\\s+(\\d+(?:\\.\\d+)?)%");
     private static final java.util.regex.Pattern ARIA2_PROGRESS_PATTERN =
@@ -143,11 +143,11 @@ public class DownloadService extends Service {
         String formatSelector = intent.getStringExtra(EXTRA_FORMAT_SELECTOR);
         boolean audioOnly = intent.getBooleanExtra(
                 EXTRA_AUDIO_ONLY,
-                getSharedPreferences("dog_settings", Context.MODE_PRIVATE).getBoolean("audio_only", false)
+                getSharedPreferences("videofetch_settings", Context.MODE_PRIVATE).getBoolean("audio_only", false)
         );
         String formatLabel = intent.getStringExtra(EXTRA_FORMAT_LABEL);
         android.content.SharedPreferences taskPreferences =
-                getSharedPreferences("dog_settings", Context.MODE_PRIVATE);
+                getSharedPreferences("videofetch_settings", Context.MODE_PRIVATE);
         DownloadTask task = new DownloadTask(
                 url, formatSelector, audioOnly, formatLabel, taskPreferences);
 
@@ -215,7 +215,7 @@ public class DownloadService extends Service {
             if (temporaryCookieFile != null) {
                 request.addOption("--cookies", temporaryCookieFile.getAbsolutePath());
             } else {
-                // Compatibility with Cookie headers saved by older Dog versions.
+                // Compatibility with Cookie headers saved by older VideoFetch versions.
                 // Never send an unrestricted legacy header when a scoped cookie jar exists.
                 String legacyCookie = SecureCookieStore.load(getApplicationContext());
                 if (legacyCookie != null) {
@@ -330,19 +330,19 @@ public class DownloadService extends Service {
             String location;
             String finishedMessage;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && publishedCount > 0) {
-                location = "公共下载目录：Download/Dog（" + publishedCount + " 个文件）";
+                location = "公共下载目录：Download/VideoFetch（" + publishedCount + " 个文件）";
                 if (publishFailures > 0) {
                     location += "；未发布文件暂存于：" + outputDirectory.getAbsolutePath();
                 }
                 finishedMessage = publishFailures == 0
-                        ? "下载完成，已保存到 Download/Dog"
+                        ? "下载完成，已保存到 Download/VideoFetch"
                         : "下载完成，" + publishedCount + " 个文件已保存，" + publishFailures + " 个保留在应用目录";
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 location = outputDirectory.getAbsolutePath();
                 finishedMessage = "下载完成，但无法发布到公共目录；文件暂存在应用目录";
             } else {
                 location = outputDirectory.getAbsolutePath();
-                finishedMessage = "下载完成，已保存到系统 Download/Dog 目录";
+                finishedMessage = "下载完成，已保存到系统 Download/VideoFetch 目录";
             }
 
             DownloadState.INSTANCE.completed(location, finishedMessage);
@@ -593,7 +593,7 @@ public class DownloadService extends Service {
             if (base == null) base = getFilesDir();
         }
 
-        File directory = new File(base, "Dog");
+        File directory = new File(base, "VideoFetch");
         if (!directory.exists() && !directory.mkdirs()) {
             throw new IOException("无法创建下载目录：" + directory);
         }
@@ -687,7 +687,7 @@ public class DownloadService extends Service {
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.stat_sys_download)
-                .setContentTitle("Dog 下载器")
+                .setContentTitle("VideoFetch 下载器")
                 .setContentText(message)
                 .setContentIntent(openPendingIntent)
                 .setProgress(100, Math.max(0, Math.min(100, progress)), ongoing && progress == 0)
@@ -719,7 +719,7 @@ public class DownloadService extends Service {
 
     public static void start(Context context, String url) {
         boolean audioOnly = context.getSharedPreferences(
-                "dog_settings", Context.MODE_PRIVATE).getBoolean("audio_only", false);
+                "videofetch_settings", Context.MODE_PRIVATE).getBoolean("audio_only", false);
         start(context, url, "", audioOnly);
     }
 

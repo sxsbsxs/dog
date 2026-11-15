@@ -1,4 +1,4 @@
-package com.sxsbsxs.dog;
+package com.sxsbsxs.videofetch;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -28,12 +28,12 @@ import javax.crypto.spec.GCMParameterSpec;
  * compatibility and are never required by the new login flow.
  */
 public final class SecureCookieStore {
-    private static final String PREFERENCES = "dog_settings";
+    private static final String PREFERENCES = "videofetch_settings";
     private static final String LEGACY_KEY = "cookie";
     private static final String ENCRYPTED_KEY = "cookie_encrypted_v1";
     private static final String COOKIE_JAR_KEY = "cookie_jar_encrypted_v1";
     private static final String COOKIE_SITE_PREFIX = "cookie_site_v2_";
-    private static final String KEY_ALIAS = "dog_cookie_aes_gcm_v1";
+    private static final String KEY_ALIAS = "videofetch_cookie_aes_gcm_v1";
     private static final int IV_LENGTH = 12;
     private static final int TAG_LENGTH_BITS = 128;
     private static final String COOKIE_FILE_HEADER = "# Netscape HTTP Cookie File";
@@ -185,7 +185,7 @@ public final class SecureCookieStore {
         addCookieRows(rows, incoming);
 
         StringBuilder merged = new StringBuilder(COOKIE_FILE_HEADER)
-                .append("\n# Combined locally by Dog. Do not share this file.\n");
+                .append("\n# Combined locally by VideoFetch. Do not share this file.\n");
         for (String row : rows.values()) {
             merged.append(row).append('\n');
         }
@@ -220,7 +220,7 @@ public final class SecureCookieStore {
             throw new IOException("无法创建 Cookie 临时目录");
         }
 
-        File temporaryFile = File.createTempFile("dog-ytdlp-cookies-", ".txt", cache);
+        File temporaryFile = File.createTempFile("videofetch-ytdlp-cookies-", ".txt", cache);
         try {
             // App-private cache files are already sandboxed; also set owner-only mode.
             temporaryFile.setReadable(false, false);

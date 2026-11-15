@@ -1,4 +1,4 @@
-package com.sxsbsxs.dog;
+package com.sxsbsxs.videofetch;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -38,7 +38,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * In-app website login. The WebView profile is isolated to Dog, and its cookies
+ * In-app website login. The WebView profile is isolated to VideoFetch, and its cookies
  * are exported locally into an encrypted yt-dlp cookie jar after user approval.
  */
 public class LoginActivity extends Activity {

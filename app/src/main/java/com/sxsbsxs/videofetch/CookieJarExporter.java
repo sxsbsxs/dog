@@ -1,4 +1,4 @@
-package com.sxsbsxs.dog;
+package com.sxsbsxs.videofetch;
 
 import android.content.Context;
 import android.database.Cursor;
@@ -21,7 +21,7 @@ import java.util.Set;
  * shared WebView profile.
  */
 public final class CookieJarExporter {
-    private static final String TAG = "DogCookieExport";
+    private static final String TAG = "VideoFetchCookieExport";
     private static final long WINDOWS_EPOCH_OFFSET_SECONDS = 11644473600L;
 
     private CookieJarExporter() {}
@@ -95,7 +95,7 @@ public final class CookieJarExporter {
 
         StringBuilder output = new StringBuilder(
                 "# Netscape HTTP Cookie File\n" +
-                "# Generated locally by Dog. Do not share this file.\n"
+                "# Generated locally by VideoFetch. Do not share this file.\n"
         );
         for (String line : rows.values()) output.append(line).append('\n');
         return output.toString();

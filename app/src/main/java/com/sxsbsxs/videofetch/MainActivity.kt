@@ -1,4 +1,4 @@
-package com.sxsbsxs.dog
+package com.sxsbsxs.videofetch
 
 import android.Manifest
 import android.graphics.BitmapFactory
@@ -166,7 +166,7 @@ class MainActivity : ComponentActivity() {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 42)
         }
         setContent {
-            DogApp(
+            VideoFetchApp(
                 initialUrl = sharedUrl,
                 onDownload = ::startDownload
             )
@@ -260,39 +260,41 @@ private fun isHttpUrl(value: String): Boolean =
     value.startsWith("https://", ignoreCase = true) ||
         value.startsWith("http://", ignoreCase = true)
 
-private val DogLightColors = lightColorScheme(
-    primary = Color(0xFF5264B8), onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFE0E5FF), onPrimaryContainer = Color(0xFF111B4A),
-    secondary = Color(0xFF59627D), onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFE2E6F4), onSecondaryContainer = Color(0xFF171F37),
-    tertiary = Color(0xFF805D4B), onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0xFFF6DED1), onTertiaryContainer = Color(0xFF321B10),
-    background = Color(0xFFF5F6FB), onBackground = Color(0xFF1A1B22),
-    surface = Color(0xFFFFFBFF), onSurface = Color(0xFF1A1B22),
-    surfaceVariant = Color(0xFFE8E9F1), onSurfaceVariant = Color(0xFF606170),
-    outline = Color(0xFF777987), outlineVariant = Color(0xFFD8D9E4),
+private val VideoFetchLightColors = lightColorScheme(
+    primary = Color(0xFF006B7B), onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFC5F1F3), onPrimaryContainer = Color(0xFF002027),
+    secondary = Color(0xFF47636A), onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFD0E8EB), onSecondaryContainer = Color(0xFF102D33),
+    tertiary = Color(0xFF356A9A), onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFD5E7FF), onTertiaryContainer = Color(0xFF071E35),
+    background = Color(0xFFF4F8FA), onBackground = Color(0xFF151D22),
+    surface = Color(0xFFFBFEFF), onSurface = Color(0xFF151D22),
+    surfaceVariant = Color(0xFFE1EAED), onSurfaceVariant = Color(0xFF526166),
+    surfaceContainerLow = Color(0xFFF0F5F7),
+    outline = Color(0xFF718187), outlineVariant = Color(0xFFC7D3D7),
     error = Color(0xFFBA1A1A)
 )
 
-private val DogDarkColors = darkColorScheme(
-    primary = Color(0xFFBEC7FF), onPrimary = Color(0xFF202E79),
-    primaryContainer = Color(0xFF394990), onPrimaryContainer = Color(0xFFE0E5FF),
-    secondary = Color(0xFFC3C8DE), onSecondary = Color(0xFF2C3147),
-    secondaryContainer = Color(0xFF42475E), onSecondaryContainer = Color(0xFFDFE2F8),
-    tertiary = Color(0xFFF0BEA5), onTertiary = Color(0xFF48291B),
-    tertiaryContainer = Color(0xFF654233), onTertiaryContainer = Color(0xFFFFDBCA),
-    background = Color(0xFF11131D), onBackground = Color(0xFFE3E2EB),
-    surface = Color(0xFF191B27), onSurface = Color(0xFFE3E2EB),
-    surfaceVariant = Color(0xFF444654), onSurfaceVariant = Color(0xFFC4C5D4),
-    outline = Color(0xFF8E90A0), outlineVariant = Color(0xFF444654),
+private val VideoFetchDarkColors = darkColorScheme(
+    primary = Color(0xFF78D9E5), onPrimary = Color(0xFF00363E),
+    primaryContainer = Color(0xFF004F59), onPrimaryContainer = Color(0xFFB9F2F7),
+    secondary = Color(0xFFB5CCD0), onSecondary = Color(0xFF20363B),
+    secondaryContainer = Color(0xFF354B50), onSecondaryContainer = Color(0xFFD1E8EC),
+    tertiary = Color(0xFFA8CCF8), onTertiary = Color(0xFF143354),
+    tertiaryContainer = Color(0xFF254A70), onTertiaryContainer = Color(0xFFD4E7FF),
+    background = Color(0xFF0C141B), onBackground = Color(0xFFE2EBEF),
+    surface = Color(0xFF111C24), onSurface = Color(0xFFE2EBEF),
+    surfaceVariant = Color(0xFF3E5058), onSurfaceVariant = Color(0xFFB9C8CE),
+    surfaceContainerLow = Color(0xFF172630),
+    outline = Color(0xFF899BA2), outlineVariant = Color(0xFF3E5058),
     error = Color(0xFFFFB4AB)
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, String) -> Unit) {
+private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Boolean, String) -> Unit) {
     val context = LocalContext.current
-    val preferences = remember { context.getSharedPreferences("dog_settings", Context.MODE_PRIVATE) }
+    val preferences = remember { context.getSharedPreferences("videofetch_settings", Context.MODE_PRIVATE) }
     var themeMode by rememberSaveable {
         mutableStateOf(preferences.getString("theme_mode", "system") ?: "system")
     }
@@ -306,8 +308,8 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
     val colors = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && dark -> dynamicDarkColorScheme(context)
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> dynamicLightColorScheme(context)
-        dark -> DogDarkColors
-        else -> DogLightColors
+        dark -> VideoFetchDarkColors
+        else -> VideoFetchLightColors
     }
 
     var selectedTab by rememberSaveable { mutableStateOf(0) }
@@ -387,7 +389,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
     LaunchedEffect(initialUrl) {
         if (!initialUrl.isNullOrBlank()) {
             url = initialUrl
-            showInputSheet = true
+            showInputSheet = false
             maxHeight = 0
             selectedVideoFormatId = ""
             selectedAudioFormatId = ""
@@ -458,7 +460,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
         val value = url.trim()
         if (!isHttpUrl(value)) {
             Toast.makeText(context, "先粘贴有效的视频链接", Toast.LENGTH_SHORT).show()
-        } else if (download.running || engineUpdating || EngineUpdateManager.isUpdating()) {
+        } else if (engineUpdating || EngineUpdateManager.isUpdating()) {
             Toast.makeText(context, "当前任务进行中，暂不能解析", Toast.LENGTH_SHORT).show()
         } else {
             previewLoading = true
@@ -558,7 +560,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                         } else {
                             Image(
                                 painter = painterResource(id = R.drawable.ic_launcher),
-                                contentDescription = "Dog",
+                                contentDescription = "VideoFetch",
                                 modifier = Modifier.padding(start = 8.dp).size(34.dp)
                             )
                         }
@@ -567,10 +569,10 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                         Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                             Text(
                                 when (selectedTab) {
-                                    0 -> "下载队列"
+                                    0 -> "下载"
                                     1 -> "已下载"
                                     2 -> "我的"
-                                    3 -> "任务详情"
+                                    3 -> "任务"
                                     else -> "设置"
                                 },
                                 style = MaterialTheme.typography.titleLarge,
@@ -580,9 +582,6 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                     },
                     actions = {
                         if (selectedTab != 4) {
-                            IconButton(onClick = { selectedTab = 3 }) {
-                                Icon(Icons.Default.List, contentDescription = "下载任务")
-                            }
                             IconButton(onClick = {
                                 settingsReturnTab = selectedTab
                                 selectedTab = 4
@@ -592,22 +591,6 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                         }
                     }
                 )
-            },
-            floatingActionButton = {
-                if (selectedTab == 0) {
-                    ExtendedFloatingActionButton(
-                        onClick = {
-                            url = ""
-                            preview = null
-                            previewError = ""
-                            showInputSheet = true
-                        },
-                        icon = { Icon(Icons.Default.Link, contentDescription = null) },
-                        text = { Text("新建下载") },
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
             },
             bottomBar = {
                 if (selectedTab != 4) {
@@ -644,7 +627,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                                 selectedTab = 2
                             },
                             icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                            label = { Text("我的") }
+                            label = { Text("授权") }
                         )
                     }
                 }
@@ -696,6 +679,98 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                                         modifier = Modifier.padding(11.dp).size(22.dp),
                                         tint = MaterialTheme.colorScheme.onSecondaryContainer
                                     )
+                                }
+                            }
+                        }
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(26.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(18.dp),
+                                    verticalArrangement = Arrangement.spacedBy(13.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Surface(
+                                            modifier = Modifier.size(42.dp),
+                                            shape = RoundedCornerShape(14.dp),
+                                            color = MaterialTheme.colorScheme.primaryContainer
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Link,
+                                                contentDescription = null,
+                                                modifier = Modifier.padding(10.dp),
+                                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                        }
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text(
+                                                "添加下载",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                "粘贴视频链接，自动识别可用画质",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                    OutlinedTextField(
+                                        value = url,
+                                        onValueChange = {
+                                            url = it
+                                            preview = null
+                                            previewError = ""
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(17.dp),
+                                        placeholder = { Text("粘贴视频链接") },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Link, contentDescription = null)
+                                        },
+                                        trailingIcon = {
+                                            IconButton(onClick = pasteUrl) {
+                                                Icon(Icons.Default.ContentPaste, contentDescription = "粘贴")
+                                            }
+                                        },
+                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                                        keyboardActions = KeyboardActions(onGo = { startPreview() })
+                                    )
+                                    Button(
+                                        onClick = startPreview,
+                                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                                        enabled = !previewLoading && !engineUpdating &&
+                                            !EngineUpdateManager.isUpdating(),
+                                        shape = RoundedCornerShape(16.dp)
+                                    ) {
+                                        Icon(Icons.Default.Search, contentDescription = null)
+                                        Spacer(Modifier.width(9.dp))
+                                        Text(
+                                            if (previewLoading) "正在解析…" else "解析链接",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                    if (previewLoading) {
+                                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                                    }
+                                    if (previewError.isNotBlank()) {
+                                        Text(
+                                            previewError,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -969,14 +1044,14 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                                         "downloading" -> "新建一个下载任务后，进度会显示在这里。"
                                         "queued" -> "添加多个链接后，后续任务会排在这里。"
                                         "finished" -> "最近完成或失败的任务会显示在这里。"
-                                        else -> "把视频链接交给 Dog，格式和画质会在解析后选择。"
+                                        else -> "把视频链接交给 VideoFetch，格式和画质会在解析后选择。"
                                     },
                                     action = "新建下载",
                                     onAction = {
                                         url = ""
                                         preview = null
                                         previewError = ""
-                                        showInputSheet = true
+                                        showInputSheet = false
                                     }
                                 )
                             }
@@ -1442,7 +1517,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                         }
 
                         Text(
-                            "Dog · 本地运行，不经过第三方下载服务器",
+                            "VideoFetch · 本地运行，不经过第三方下载服务器",
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center,
                             style = MaterialTheme.typography.labelSmall,
@@ -1578,9 +1653,9 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                                     Text("正在更新…")
                                 } else Text("检查并更新 yt-dlp")
                             }
-                            Text("这只更新本机的网站解析脚本，不会更新 Dog 应用。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("这只更新本机的网站解析脚本，不会更新 VideoFetch 应用。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Text("Dog · 本地视频下载器", modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("VideoFetch · 本地视频下载器", modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
