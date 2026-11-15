@@ -369,23 +369,24 @@ public final class VideoInfoService {
 
         if (qualities.isEmpty()) {
             if (niconico) {
-                String route = "v3_guest".equals(niconicoApiMode) ? "游客 v3_guest 接口" :
-                        ("v3".equals(niconicoApiMode) ? "标准 v3 接口" : "未能确认 API 路径");
-                return "Niconico " + route + "没有返回可用视频流。请检查授权状态、视频可用性和账号权限。";
+                return "Niconico " + niconicoRouteLabel(niconicoApiMode) +
+                        "没有返回可用视频流。Dog 会尝试使用上游 v3/v3_guest 提取器；请检查视频可用性和账号权限。";
             }
             return "解析器没有收到可用的视频画质列表；下载时会由源站选择默认格式。";
         }
 
         int highestHeight = qualities.get(0).height;
         if (niconico && highestHeight <= 720) {
-            String route = "v3_guest".equals(niconicoApiMode)
-                    ? "游客接口 v3_guest"
-                    : ("v3".equals(niconicoApiMode) ? "标准接口 v3" : "未能确认的接口路径");
             String account = hasNiconicoSession
-                    ? "当前已检测到 Niconico 登录 Cookie"
-                    : "当前没有检测到 Niconico 登录 Cookie";
-            return "本次通过 " + route + " 获取到最高 " + highestHeight + "p（" + account +
-                    "）。Niconico 普通/未登录账号最高通常为 720p；1080p 需要 Premium，且视频本身必须提供该规格。Dog 没有把 1080p 过滤掉：如果接口返回了 1080p，这里会直接显示。";
+                    ? "已检测到本机 user_session Cookie"
+                    : "没有检测到本机 user_session Cookie";
+            return "本次通过 " + niconicoRouteLabel(niconicoApiMode) +
+                    " 获取到最高 " + highestHeight + "p（" + account +
+                    "）。Niconico 官方规则是普通/未登录账号最高 720p，Premium 最高 1080p；视频本身也必须提供对应规格。若其他下载站在你未登录的情况下显示 1080p，可能是它的服务器使用了自己的账号会话；仅凭页面上的画质标签还不能确认实际下载文件。";
+        }
+        if (niconico && highestHeight > 720 && !hasNiconicoSession) {
+            return "匿名页面解析实际返回了 " + highestHeight +
+                    "p 流；Dog 将使用解析器返回的真实流，不会用 1080p 标签伪造画质。";
         }
 
         if (bilibili && qualities.size() == 1 && qualities.get(0).height <= 480) {
@@ -395,6 +396,14 @@ public final class VideoInfoService {
                     "）。匿名请求也可能获取高清画质；实际结果取决于该视频、权限和站点接口，登录不保证解锁更高画质。";
         }
         return "";
+    }
+
+    private static String niconicoRouteLabel(String mode) {
+        if ("watchV4-dms".equals(mode)) return "视频页 $watchV4 + DMS";
+        if ("server-response-dms".equals(mode)) return "视频页 server-response + DMS";
+        if ("v3_guest".equals(mode)) return "游客 v3_guest";
+        if ("v3".equals(mode)) return "标准 v3";
+        return "未确认的接口路径";
     }
 
     private static boolean hasCookie(File cookieFile, String cookieName) {
