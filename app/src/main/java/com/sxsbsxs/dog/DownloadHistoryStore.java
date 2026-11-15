@@ -26,6 +26,18 @@ public final class DownloadHistoryStore {
             String status,
             String message
     ) {
+        record(context, sourceUrl, fileName, location, status, message, "");
+    }
+
+    public static synchronized void record(
+            Context context,
+            String sourceUrl,
+            String fileName,
+            String location,
+            String status,
+            String message,
+            String formatLabel
+    ) {
         try {
             SharedPreferences preferences = preferences(context);
             JSONArray previous = new JSONArray(preferences.getString(KEY_ITEMS, "[]"));
@@ -38,6 +50,7 @@ public final class DownloadHistoryStore {
             item.put("location", location == null ? "" : location);
             item.put("status", status == null ? "unknown" : status);
             item.put("message", message == null ? "" : message);
+            item.put("formatLabel", formatLabel == null ? "" : formatLabel);
             next.put(item);
 
             for (int i = 0; i < previous.length() && i < MAX_ITEMS - 1; i++) {
