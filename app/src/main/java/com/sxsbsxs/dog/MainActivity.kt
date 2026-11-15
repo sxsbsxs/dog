@@ -380,7 +380,13 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
     LaunchedEffect(autoUpdateEngine, autoUpdateWifiOnly) {
         if (autoUpdateEngine) {
             delay(5_000)
-            EngineUpdateManager.updateIfDue(context, autoUpdateWifiOnly)
+            val started = EngineUpdateManager.updateIfDue(context, autoUpdateWifiOnly) { message ->
+                engineUpdating = false
+                if (message.isNotBlank()) {
+                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                }
+            }
+            engineUpdating = started
         }
     }
 
@@ -412,7 +418,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
         val value = url.trim()
         if (!isHttpUrl(value)) {
             Toast.makeText(context, "先粘贴有效的视频链接", Toast.LENGTH_SHORT).show()
-        } else if (download.running || engineUpdating) {
+        } else if (download.running || engineUpdating || EngineUpdateManager.isUpdating()) {
             Toast.makeText(context, "当前任务进行中，暂不能解析", Toast.LENGTH_SHORT).show()
         } else {
             previewLoading = true
@@ -463,7 +469,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
             selectedAudio != null -> selectedVideo.label + " + " + selectedAudio.label
             else -> selectedVideo.label + " + 自动音频"
         }
-        if (engineUpdating || previewLoading) {
+        if (engineUpdating || EngineUpdateManager.isUpdating() || previewLoading) {
             Toast.makeText(context, "请等待当前操作完成", Toast.LENGTH_SHORT).show()
         } else if (!isHttpUrl(value)) {
             Toast.makeText(context, "请输入有效的视频链接", Toast.LENGTH_SHORT).show()
@@ -684,7 +690,8 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
 
                                 Button(
                                     onClick = { if (preview == null) startPreview() else showFormatSheet = true },
-                                    enabled = url.isNotBlank() && !previewLoading && !engineUpdating,
+                                    enabled = url.isNotBlank() && !previewLoading && !engineUpdating &&
+                                        !EngineUpdateManager.isUpdating(),
                                     modifier = Modifier.fillMaxWidth().height(54.dp),
                                     shape = RoundedCornerShape(18.dp)
                                 ) {
@@ -1307,7 +1314,8 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                                         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                                     }
                                 },
-                                enabled = !engineUpdating && !download.running && !previewLoading,
+                                enabled = !engineUpdating && !EngineUpdateManager.isUpdating() &&
+                                    !download.running && !previewLoading,
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(14.dp)
                             ) {
@@ -1518,7 +1526,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                     }
                     Button(
                         onClick = startDownload,
-                        enabled = !engineUpdating && !previewLoading,
+                        enabled = !engineUpdating && !EngineUpdateManager.isUpdating() && !previewLoading,
                         modifier = Modifier.fillMaxWidth().height(54.dp),
                         shape = RoundedCornerShape(18.dp)
                     ) {
