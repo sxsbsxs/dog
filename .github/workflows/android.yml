@@ -31,6 +31,8 @@ jobs:
         env:
           PYTHONPYCACHEPREFIX: /tmp/dog-python-cache
         run: python -m py_compile app/src/main/assets/yt-dlp-plugins/dog/yt_dlp_plugins/extractor/niconico.py
+      - name: Test Niconico V4/DMS extraction contract
+        run: python tools/test_niconico_v4_extractor.py
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug
       - name: Verify Python and native runtime packages
