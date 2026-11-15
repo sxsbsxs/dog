@@ -47,7 +47,12 @@ public final class YouTubeRequestFallback {
 
     /** Safari's HLS formats can be a useful final route when GVS PO Tokens are unavailable. */
     public static void applyHlsFallback(YoutubeDLRequest request) {
-        request.addOption("--extractor-args", "youtube:player_client=default,web_safari");
+        // Do not include "default" here. With account cookies yt-dlp expands
+        // default to web_embedded,tv_samsung,web (or web_creator,...). That
+        // re-enables the embedded client, whose config can lack
+        // INNERTUBE_CONTEXT and crash _fix_embedded_ytcfg before Safari HLS
+        // is tried. This final fallback must be isolated to Safari only.
+        request.addOption("--extractor-args", "youtube:player_client=web_safari");
     }
 
     public static void applyClient(YoutubeDLRequest request, String client) {
@@ -78,11 +83,30 @@ public final class YouTubeRequestFallback {
 
     public static boolean isPoTokenFailure(String value) {
         if (value == null || value.isEmpty()) return false;
+        String normalized = value.toLowerCase(Locale.ROOT)
+                .replace('-', '_');
+        // Do not treat inventory/debug lines such as
+        // "PO Token Providers: none" as an extraction failure.
+        return normalized.contains("po token is required") ||
+                normalized.contains("po token required") ||
+                normalized.contains("requires a po token") ||
+                normalized.contains("po token was not provided") ||
+                normalized.contains("po token which was not provided") ||
+                normalized.contains("gvs po token") && normalized.contains("not provided") ||
+                normalized.contains("no po_token") ||
+                normalized.contains("po_token is required") ||
+                normalized.contains("po_token was not provided") ||
+                normalized.contains("failed to generate po token") ||
+                normalized.contains("could not generate po token");
+    }
+
+    public static boolean isEmbeddedConfigFailure(String value) {
+        if (value == null || value.isEmpty()) return false;
         String normalized = value.toLowerCase(Locale.ROOT);
-        return normalized.contains("po token") ||
-                normalized.contains("po_token") ||
-                normalized.contains("proof of origin") ||
-                normalized.contains("pot provider");
+        return normalized.contains("keyerror('innertube_context')") ||
+                normalized.contains("keyerror(\\"innertube_context\\")") ||
+                normalized.contains("keyerror: 'innertube_context'") ||
+                normalized.contains("keyerror: \\"innertube_context\\"");
     }
 
     public static boolean isHttp403(String value) {
@@ -96,7 +120,8 @@ public final class YouTubeRequestFallback {
     }
 
     public static boolean isRetryableFailure(String value) {
-        return isBotChallenge(value) || isPoTokenFailure(value) || isHttp403(value);
+        return isBotChallenge(value) || isPoTokenFailure(value) ||
+                isHttp403(value) || isEmbeddedConfigFailure(value);
     }
 
     public static boolean isBotChallenge(Throwable failure) {
@@ -134,6 +159,9 @@ public final class YouTubeRequestFallback {
     public static String userMessage(String diagnostics) {
         if (isJavaScriptRuntimeFailure(diagnostics)) {
             return "yt-dlp 没有检测到 JavaScript 运行时。VideoFetch 已打包 QuickJS；请检查诊断信息中的 QuickJS 状态，并更新 yt-dlp nightly 后重试。";
+        }
+        if (isEmbeddedConfigFailure(diagnostics)) {
+            return "YouTube 的 web_embedded 客户端配置缺少 INNERTUBE_CONTEXT，触发了 yt-dlp 提取器异常。VideoFetch 已改为隔离 Safari HLS 回退，避免再次加载该客户端。";
         }
         if (isPoTokenFailure(diagnostics)) {
             return "YouTube 要求 PO Token。Cookie 和登录状态不能代替它；当前版本会尝试兼容客户端，" +
