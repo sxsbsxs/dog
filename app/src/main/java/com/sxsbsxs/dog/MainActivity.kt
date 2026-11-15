@@ -127,17 +127,20 @@ class MainActivity : ComponentActivity() {
     private var pendingDownloadUrl: String? = null
     private var pendingFormatSelector: String = ""
     private var pendingAudioOnly: Boolean = false
+    private var pendingFormatLabel: String = ""
 
     private val storagePermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             val pending = pendingDownloadUrl
             val pendingFormat = pendingFormatSelector
             val pendingAudioOnlyValue = pendingAudioOnly
+            val pendingLabel = pendingFormatLabel
             pendingDownloadUrl = null
             pendingFormatSelector = ""
             pendingAudioOnly = false
+            pendingFormatLabel = ""
             if (granted && !pending.isNullOrBlank()) {
-                DownloadService.start(this, pending, pendingFormat, pendingAudioOnlyValue)
+                DownloadService.start(this, pending, pendingFormat, pendingAudioOnlyValue, pendingLabel)
             } else if (!granted) {
                 Toast.makeText(this, "需要存储权限才能写入系统下载目录", Toast.LENGTH_LONG).show()
             }
@@ -171,7 +174,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun startDownload(url: String, formatSelector: String, audioOnly: Boolean) {
+    private fun startDownload(url: String, formatSelector: String, audioOnly: Boolean, formatLabel: String) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
             ContextCompat.checkSelfPermission(
                 this, Manifest.permission.WRITE_EXTERNAL_STORAGE
@@ -180,10 +183,11 @@ class MainActivity : ComponentActivity() {
             pendingDownloadUrl = url
             pendingFormatSelector = formatSelector
             pendingAudioOnly = audioOnly
+            pendingFormatLabel = formatLabel
             storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             return
         }
-        DownloadService.start(this, url, formatSelector, audioOnly)
+        DownloadService.start(this, url, formatSelector, audioOnly, formatLabel)
     }
 
     private fun sharedText(intent: Intent?): String? = when (intent?.action) {
@@ -275,7 +279,7 @@ private val DogDarkColors = darkColorScheme(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean) -> Unit) {
+private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, String) -> Unit) {
     val context = LocalContext.current
     val preferences = remember { context.getSharedPreferences("dog_settings", Context.MODE_PRIVATE) }
     var themeMode by rememberSaveable {
@@ -433,6 +437,13 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean) ->
             selectedAudio != null -> selectedVideo.formatId + "+" + selectedAudio.formatId
             else -> selectedVideo.formatId + "+bestaudio"
         }
+        val formatLabel = when {
+            audioOnly -> "仅音频 · " + (selectedAudio?.label ?: "自动选择最佳")
+            selectedVideo == null -> "视频 · 自动选择最佳"
+            selectedVideo.hasAudio -> selectedVideo.label + "（含音频）"
+            selectedAudio != null -> selectedVideo.label + " + " + selectedAudio.label
+            else -> selectedVideo.label + " + 自动音频"
+        }
         if (engineUpdating || previewLoading) {
             Toast.makeText(context, "请等待当前操作完成", Toast.LENGTH_SHORT).show()
         } else if (!isHttpUrl(value)) {
@@ -446,7 +457,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean) ->
                 preferences.edit().putInt("max_height", 0).apply()
             }
             showFormatSheet = false
-            onDownload(value, formatSelector, audioOnly)
+            onDownload(value, formatSelector, audioOnly, formatLabel)
             url = ""
             preview = null
             previewError = ""
@@ -823,6 +834,21 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean) ->
                                             Text(download.progress.toString() + "%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                                         } else {
                                             CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                                        }
+                                    }
+                                    if (download.formatLabel.isNotBlank()) {
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.colorScheme.secondaryContainer
+                                        ) {
+                                            Text(
+                                                "本次格式 · " + download.formatLabel,
+                                                modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
                                         }
                                     }
                                     if (download.progressKnown) {
