@@ -2755,8 +2755,11 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                         ) {
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text("更多下载选项", fontWeight = FontWeight.SemiBold)
-                                Text("字幕、播放列表、下载速度", style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    "完整格式流、字幕、封面、文件命名、网络和重试",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                             Text(
                                 if (showAdvancedDownloadSettings) "收起" else "展开",
@@ -2774,12 +2777,45 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                         ) {
                             Column(
                                 modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(9.dp)
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                SettingsToggleRow("同时下载字幕", "下载网站提供的字幕", downloadSubtitles) {
-                                    downloadSubtitles = it
+                                if (!audioOnly && videoOptions.isNotEmpty()) {
+                                    Text("全部可用视频流", fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        "展开每个真实格式，查看编码、帧率、文件大小和格式 ID",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    FormatSelectionList(
+                                        options = videoOptions,
+                                        selectedId = selectedVideoFormatId,
+                                        onSelected = { id ->
+                                            selectedVideoFormatId = id
+                                            val selected = videoOptions.firstOrNull { it.formatId == id }
+                                            maxHeight = selected?.height ?: 0
+                                            if (selected?.hasAudio == true) {
+                                                selectedAudioFormatId = ""
+                                            } else if (selectedAudioFormatId.isBlank()) {
+                                                selectedAudioFormatId =
+                                                    bestAudioFormat(audioOptions)?.formatId.orEmpty()
+                                            }
+                                            preferences.edit().putInt("max_height", maxHeight).apply()
+                                        }
+                                    )
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                                 }
-                                if (downloadSubtitles) {
+                                Text("字幕下载", fontWeight = FontWeight.SemiBold)
+                                SettingsToggleRow(
+                                    "下载网站字幕",
+                                    "获取网站提供的人工字幕轨道",
+                                    downloadSubtitles
+                                ) { downloadSubtitles = it }
+                                SettingsToggleRow(
+                                    "下载自动生成字幕",
+                                    "获取语音识别生成的字幕轨道",
+                                    downloadAutoSubtitles
+                                ) { downloadAutoSubtitles = it }
+                                if (downloadSubtitles || downloadAutoSubtitles) {
                                     OutlinedTextField(
                                         value = subtitleLanguages,
                                         onValueChange = { subtitleLanguages = it },
@@ -2789,19 +2825,90 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                         label = { Text("字幕语言") },
                                         placeholder = { Text("all 或 zh-Hans,zh-CN,en") }
                                     )
-                                }
-                                SettingsToggleRow("下载整个播放列表", "默认只下载当前视频", downloadPlaylist) {
-                                    downloadPlaylist = it
-                                }
-                                SettingsToggleRow("跳过已下载的视频", "在本机保存下载归档", skipExisting) {
-                                    skipExisting = it
+                                    SettingsToggleRow(
+                                        "将字幕嵌入视频",
+                                        "关闭后字幕以独立文件保存",
+                                        embedSubtitles
+                                    ) { embedSubtitles = it }
                                 }
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                                Text("下载速度", fontWeight = FontWeight.SemiBold)
+                                Text("封面和媒体信息", fontWeight = FontWeight.SemiBold)
+                                SettingsToggleRow(
+                                    "嵌入元数据",
+                                    "写入标题、作者和媒体信息",
+                                    embedMetadata
+                                ) { embedMetadata = it }
+                                SettingsToggleRow(
+                                    "嵌入封面图片",
+                                    "将封面写入支持封面的媒体文件",
+                                    embedThumbnail
+                                ) { embedThumbnail = it }
+                                SettingsToggleRow(
+                                    "额外保存封面图片",
+                                    "同时保存独立 JPG / WebP 图片",
+                                    writeThumbnail
+                                ) { writeThumbnail = it }
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                                Text("下载任务", fontWeight = FontWeight.SemiBold)
+                                SettingsToggleRow(
+                                    "下载整个播放列表",
+                                    "默认只下载当前视频",
+                                    downloadPlaylist
+                                ) { downloadPlaylist = it }
+                                SettingsToggleRow(
+                                    "跳过已下载的视频",
+                                    "在本机保存下载归档",
+                                    skipExisting
+                                ) { skipExisting = it }
+                                SettingsToggleRow(
+                                    "使用 aria2c 加速",
+                                    "使用内置 aria2c 下载器获取媒体分片",
+                                    useAria2
+                                ) { useAria2 = it }
+                                Text("分片并发", style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 ChoiceChipRows(
-                                    options = listOf("1" to "省流量", "4" to "均衡", "8" to "高速"),
+                                    options = listOf(
+                                        "1" to "省流量", "2" to "稳定", "4" to "均衡",
+                                        "6" to "快速", "8" to "高速"
+                                    ),
                                     selected = concurrentFragments.toString(),
                                     onSelected = { concurrentFragments = it.toIntOrNull() ?: 4 }
+                                )
+                                Text("失败重试次数", style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                ChoiceChipRows(
+                                    options = listOf(
+                                        "3" to "3 次", "10" to "10 次",
+                                        "20" to "20 次", "30" to "30 次"
+                                    ),
+                                    selected = downloadRetries.toString(),
+                                    onSelected = { downloadRetries = it.toIntOrNull() ?: 10 }
+                                )
+                                OutlinedTextField(
+                                    value = rateLimit,
+                                    onValueChange = {
+                                        rateLimit = it.filter { ch ->
+                                            ch.isLetterOrDigit() || ch == '.'
+                                        }.take(12)
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    label = { Text("下载限速（可选）") },
+                                    placeholder = { Text("如 2M、800K，留空不限速") },
+                                    supportingText = { Text("支持 K / M / G 单位") },
+                                    shape = RoundedCornerShape(14.dp)
+                                )
+                                Text("文件命名", style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                ChoiceChipRows(
+                                    options = listOf(
+                                        "title" to "标题",
+                                        "title_id" to "标题 + ID",
+                                        "id_title" to "ID + 标题"
+                                    ),
+                                    selected = filenameTemplate,
+                                    onSelected = { filenameTemplate = it }
                                 )
                             }
                         }
