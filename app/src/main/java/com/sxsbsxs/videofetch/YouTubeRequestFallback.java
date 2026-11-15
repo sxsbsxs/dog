@@ -104,9 +104,7 @@ public final class YouTubeRequestFallback {
         if (value == null || value.isEmpty()) return false;
         String normalized = value.toLowerCase(Locale.ROOT);
         return normalized.contains("keyerror('innertube_context')") ||
-                normalized.contains("keyerror(\\"innertube_context\\")") ||
                 normalized.contains("keyerror: 'innertube_context'") ||
-                normalized.contains("keyerror: \\"innertube_context\\"");
     }
 
     public static boolean isHttp403(String value) {
