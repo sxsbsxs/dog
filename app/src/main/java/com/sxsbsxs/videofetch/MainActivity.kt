@@ -163,8 +163,18 @@ class MainActivity : ComponentActivity() {
         // uses only the platform AlertDialog and remains usable even when the
         // Compose UI itself is what crashed.
         if (CrashReporter.hasPreviousCrash(this)) {
-            showPreviousCrashReport()
-            return
+            val previousCrash = CrashReporter.readPreviousCrash(this)
+            val wasKnownAdaptiveIconCrash =
+                previousCrash.contains("Only VectorDrawables and rasterized asset types are supported") &&
+                previousCrash.contains("PainterResources_androidKt.loadVectorResource") &&
+                previousCrash.contains("MainActivityKt$VideoFetchApp")
+            if (wasKnownAdaptiveIconCrash) {
+                // This report is the confirmed launcher-icon crash fixed in this build.
+                CrashReporter.clearPreviousCrash(this)
+            } else {
+                showPreviousCrashReport()
+                return
+            }
         }
 
         CrashReporter.mark(this, "enableEdgeToEdge")
@@ -610,8 +620,8 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                             }
                         } else {
                             Image(
-                                painter = painterResource(id = R.drawable.ic_launcher),
-                                contentDescription = "VideoFetch",
+                                painter = painterResource(id = R.drawable.ic_brand_mark),
+                                contentDescription = "video-dl",
                                 modifier = Modifier.padding(start = 8.dp).size(34.dp)
                             )
                         }
