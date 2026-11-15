@@ -945,8 +945,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                                     }
                                     Button(
                                         onClick = {
-                                            DownloadService.start(
-                                                context,
+                                            onDownload(
                                                 download.lastUrl,
                                                 download.formatSelector,
                                                 download.audioOnly,
