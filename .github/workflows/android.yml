@@ -42,6 +42,26 @@ jobs:
           for apk in app/build/outputs/apk/debug/*.apk; do
             python tools/check_native_runtime.py "$apk"
           done
+      - name: Smoke-test app startup on Android 14 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_2
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            PACKAGE="com.sxsbsxs.videofetch.debug"
+            adb install -r app/build/outputs/apk/debug/app-x86_64-debug.apk
+            adb logcat -c
+            adb shell am start -W -n "$PACKAGE/com.sxsbsxs.videofetch.MainActivity"
+            sleep 8
+            if ! adb shell pidof "$PACKAGE" >/dev/null; then
+              adb logcat -d -v threadtime | tail -n 500
+              exit 1
+            fi
+            echo "video-dl remained alive after launch"
       - uses: actions/upload-artifact@v4
         with:
           name: videofetch-debug-arm64-v8a
