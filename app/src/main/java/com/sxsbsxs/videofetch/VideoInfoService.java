@@ -132,34 +132,13 @@ public final class VideoInfoService {
             File cookieFile = null;
             try {
                 YtDlpEngine.initialize(app);
-                YoutubeDLRequest request = new YoutubeDLRequest(url);
-                request.addOption("--plugin-dirs", YtDlpEngine.getPluginDirectory(app).getAbsolutePath());
-                request.addOption("--no-playlist");
-                request.addOption("--no-warnings");
-                request.addOption("--dump-json");
                 cookieFile = SecureCookieStore.createTemporaryCookieFile(app);
-                if (cookieFile != null) {
-                    request.addOption("--cookies", cookieFile.getAbsolutePath());
-                }
+                YoutubeDLRequest request = createInfoRequest(app, url, cookieFile, null);
 
                 // Use the raw JSON output so every entry in yt-dlp's formats[]
                 // is inspected, rather than trusting a partially mapped model.
-                YoutubeDLResponse response;
-                try {
-                    response = YoutubeDL.getInstance().execute(request, null, false, null);
-                } catch (Exception firstFailure) {
-                    if (!YouTubeRequestFallback.shouldRetry(
-                            url, firstFailure, firstFailure.getMessage())) {
-                        throw firstFailure;
-                    }
-                    YouTubeRequestFallback.applyFallback(request);
-                    try {
-                        response = YoutubeDL.getInstance().execute(request, null, false, null);
-                    } catch (Exception retryFailure) {
-                        retryFailure.addSuppressed(firstFailure);
-                        throw retryFailure;
-                    }
-                }
+                YoutubeDLResponse response = executeWithYouTubeFallback(
+                        app, url, cookieFile, request);
                 String rawOutput = response.getOut();
                 int jsonStart = rawOutput == null ? -1 : rawOutput.indexOf('{');
                 String screenMessages = jsonStart > 0 ? rawOutput.substring(0, jsonStart) : "";
@@ -206,8 +185,9 @@ public final class VideoInfoService {
                 // Always cross the main-thread boundary from this worker executor.
                 MAIN_HANDLER.post(() -> callback.onSuccess(preview));
             } catch (Throwable failure) {
-                String message = YouTubeRequestFallback.isBotChallenge(failure)
-                        ? YouTubeRequestFallback.userMessage()
+                String message = YouTubeRequestFallback.shouldRetry(
+                        url, failure, failure.toString())
+                        ? YouTubeRequestFallback.userMessage(failure.toString())
                         : failure.getMessage();
                 if (message == null || message.trim().isEmpty()) message = failure.getClass().getSimpleName();
                 if (message.length() > 360) message = message.substring(0, 360) + "…";
@@ -221,6 +201,54 @@ public final class VideoInfoService {
                 executor.shutdown();
             }
         });
+    }
+
+    private static YoutubeDLRequest createInfoRequest(
+            Context app, String url, File cookieFile, String playerClient
+    ) throws java.io.IOException {
+        YoutubeDLRequest request = new YoutubeDLRequest(url);
+        request.addOption("--plugin-dirs", YtDlpEngine.getPluginDirectory(app).getAbsolutePath());
+        request.addOption("--no-playlist");
+        request.addOption("--no-warnings");
+        request.addOption("--dump-json");
+        if (YouTubeRequestFallback.isYoutubeUrl(url)) {
+            YouTubeRequestFallback.applyCommonOptions(request);
+        }
+        if (cookieFile != null) {
+            request.addOption("--cookies", cookieFile.getAbsolutePath());
+        }
+        if ("tv".equals(playerClient)) {
+            YouTubeRequestFallback.applyFallback(request);
+        } else if ("web_safari".equals(playerClient)) {
+            YouTubeRequestFallback.applyHlsFallback(request);
+        }
+        return request;
+    }
+
+    private static YoutubeDLResponse executeWithYouTubeFallback(
+            Context app, String url, File cookieFile, YoutubeDLRequest primaryRequest
+    ) throws Exception {
+        try {
+            return YoutubeDL.getInstance().execute(primaryRequest, null, false, null);
+        } catch (Exception firstFailure) {
+            if (!YouTubeRequestFallback.shouldRetry(url, firstFailure, firstFailure.getMessage())) {
+                throw firstFailure;
+            }
+
+            YoutubeDLRequest tvRequest = createInfoRequest(app, url, cookieFile, "tv");
+            try {
+                return YoutubeDL.getInstance().execute(tvRequest, null, false, null);
+            } catch (Exception tvFailure) {
+                YoutubeDLRequest safariRequest = createInfoRequest(app, url, cookieFile, "web_safari");
+                try {
+                    return YoutubeDL.getInstance().execute(safariRequest, null, false, null);
+                } catch (Exception safariFailure) {
+                    safariFailure.addSuppressed(tvFailure);
+                    safariFailure.addSuppressed(firstFailure);
+                    throw safariFailure;
+                }
+            }
+        }
     }
 
     private static JSONObject parseDumpJson(String output) throws JSONException {
