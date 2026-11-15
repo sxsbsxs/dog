@@ -37,7 +37,7 @@ public final class EngineUpdateManager {
     public static boolean updateIfDue(Context context, boolean wifiOnly, Callback callback) {
         Context app = context.getApplicationContext();
         SharedPreferences preferences = app.getSharedPreferences("videofetch_settings", Context.MODE_PRIVATE);
-        if (!preferences.getBoolean("auto_update_engine", true)) return false;
+        if (!preferences.getBoolean("auto_update_engine", false)) return false;
         if (UPDATING.get() || DownloadState.INSTANCE.isRunning() || VideoInfoService.isInspecting()) return false;
 
         long lastCheck = preferences.getLong("last_engine_update_check", 0L);
