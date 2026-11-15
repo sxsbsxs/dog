@@ -172,8 +172,11 @@ assert standard_request["headers"]["X-Frontend-Id"] == "6"
 assert standard_request["headers"]["X-Frontend-Version"] == "0"
 standard_track = standard_request["query"]["actionTrackId"]
 assert standard_track.startswith("AAAAAAAAAA_")
+assert standard_request["query"]["_frontendId"] == "6"
+assert standard_request["query"]["_frontendVersion"] == "0"
 assert standard_request["query"]["skips"] == "harmful"
 assert standard_request["query"]["noSideEffect"] == "false"
+assert standard_request["query"]["t"] == standard_track.split("_", 1)[1]
 assert_dms_request(standard, "track-from-watch-api")
 
 # Standard v3 failure falls back to v3_guest, reusing the actionTrackId.
