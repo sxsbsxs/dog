@@ -162,7 +162,6 @@ import androidx.media3.ui.PlayerControlView
 import androidx.media3.ui.PlayerView
 import java.text.SimpleDateFormat
 import java.io.File
-import java.io.ByteArrayOutputStream
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -468,44 +467,6 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
         }
     }
 
-    val cookieImportPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { pickedUri ->
-        if (pickedUri != null) {
-            runCatching {
-                val cookieBytes = context.contentResolver.openInputStream(pickedUri)?.use { input ->
-                    val output = ByteArrayOutputStream()
-                    val buffer = ByteArray(8192)
-                    var totalBytes = 0
-                    while (true) {
-                        val count = input.read(buffer)
-                        if (count < 0) break
-                        totalBytes += count
-                        if (totalBytes > 2 * 1024 * 1024) {
-                            throw IllegalArgumentException("Cookie 文件超过 2 MB，已取消导入")
-                        }
-                        output.write(buffer, 0, count)
-                    }
-                    output.toByteArray()
-                } ?: throw IllegalStateException("无法读取所选 Cookie 文件")
-
-                val importedCount = SecureCookieStore.importYoutubeCookieFile(
-                    context, String(cookieBytes, Charsets.UTF_8)
-                )
-                authorizedSites = SecureCookieStore.listAuthorizedSites(context)
-                hasCookieJar = SecureCookieStore.hasCookieJar(context)
-                Toast.makeText(
-                    context,
-                    "已加密导入 $importedCount 条 YouTube/Google Cookie",
-                    Toast.LENGTH_LONG
-                ).show()
-            }.onFailure { failure ->
-                val message = failure.message?.takeIf { it.isNotBlank() } ?: "Cookie 文件导入失败"
-                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
     val localMediaPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { pickedUri ->
@@ -615,12 +576,29 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
         authorizedSites = SecureCookieStore.listAuthorizedSites(context)
         hasCookieJar = SecureCookieStore.hasCookieJar(context)
         if (result.resultCode == Activity.RESULT_OK) {
-            Toast.makeText(context, "授权已保存，正在重新获取可用画质…", Toast.LENGTH_SHORT).show()
-            val target = url.trim()
-            if (isHttpUrl(target)) {
-                previewLoading = true
-                showFormatSheet = false
-                VideoInfoService.inspect(context, target, object : VideoInfoService.Callback {
+            val failedTask = download
+            val retryBlockedYoutubeTask =
+                failedTask.lastUrl.isNotBlank() &&
+                YouTubeRequestFallback.isYoutubeUrl(failedTask.lastUrl) &&
+                failedTask.message.contains("YouTube 拦截了当前会话")
+
+            if (retryBlockedYoutubeTask) {
+                Toast.makeText(context, "YouTube 登录已保存，正在自动重试刚才的下载…", Toast.LENGTH_LONG).show()
+                onDownload(
+                    failedTask.lastUrl,
+                    failedTask.formatSelector,
+                    failedTask.audioOnly,
+                    failedTask.formatLabel
+                )
+            } else {
+                Toast.makeText(context, "授权已保存，正在重新获取可用画质…", Toast.LENGTH_SHORT).show()
+                val target = url.trim().ifBlank {
+                    preferences.getString("last_input_url", "").orEmpty()
+                }
+                if (isHttpUrl(target)) {
+                    previewLoading = true
+                    showFormatSheet = false
+                    VideoInfoService.inspect(context, target, object : VideoInfoService.Callback {
                     override fun onSuccess(result: VideoInfoService.Preview) {
                         previewLoading = false
                         if (url.trim() == target) {
@@ -640,7 +618,8 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                         previewError = message
                         Toast.makeText(context, "重新解析失败：" + message, Toast.LENGTH_LONG).show()
                     }
-                })
+                    })
+                }
             }
         }
     }
@@ -1156,6 +1135,15 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onErrorContainer
                                         )
+                                        if (previewError.contains("YouTube 拦截了当前会话")) {
+                                            OutlinedButton(
+                                                onClick = openLogin,
+                                                modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
+                                                shape = RoundedCornerShape(14.dp)
+                                            ) {
+                                                Text("登录 YouTube 并继续")
+                                            }
+                                        }
                                     }
                                 }
 
@@ -1362,6 +1350,8 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                             item {
                                 val completed = download.progress == 100
                                 val failed = download.message.startsWith("下载失败")
+                                val youtubeLoginRequired = failed &&
+                                    download.message.contains("YouTube 拦截了当前会话")
                                 SealVideoTaskCard(
                                     title = lastDownloadPreview?.title ?: download.lastUrl,
                                     uploader = lastDownloadPreview?.uploader ?: sourceHost(download.lastUrl),
@@ -1379,16 +1369,28 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                     onActions = {
                                         Button(
                                             onClick = {
-                                                onDownload(
-                                                    download.lastUrl,
-                                                    download.formatSelector,
-                                                    download.audioOnly,
-                                                    download.formatLabel
-                                                )
+                                                if (youtubeLoginRequired) {
+                                                    openLogin()
+                                                } else {
+                                                    onDownload(
+                                                        download.lastUrl,
+                                                        download.formatSelector,
+                                                        download.audioOnly,
+                                                        download.formatLabel
+                                                    )
+                                                }
                                             },
                                             modifier = Modifier.weight(1f),
                                             shape = MaterialTheme.shapes.large
-                                        ) { Text(if (completed) "再次下载" else "重试下载") }
+                                        ) {
+                                            Text(
+                                                when {
+                                                    completed -> "再次下载"
+                                                    youtubeLoginRequired -> "登录并自动重试"
+                                                    else -> "重试下载"
+                                                }
+                                            )
+                                        }
                                         TextButton(
                                             onClick = {
                                                 url = download.lastUrl
@@ -1993,22 +1995,6 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                 ) {
                                     Text(if (hasCookieJar) "添加其他网站授权" else "登录网站账号")
                                 }
-                                OutlinedButton(
-                                    onClick = {
-                                        cookieImportPicker.launch(
-                                            arrayOf("text/plain", "application/octet-stream")
-                                        )
-                                    },
-                                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                                    shape = RoundedCornerShape(16.dp)
-                                ) {
-                                    Text("导入 YouTube cookies.txt")
-                                }
-                                Text(
-                                    "可导入浏览器导出的 Netscape 格式 Cookie 文件。只保存 YouTube/Google 域名条目，并在本机加密；Cookie 等同账号凭证，请勿分享。",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
                                 if (hasCookieJar) {
                                     TextButton(
                                         onClick = {
