@@ -69,6 +69,7 @@ public class DownloadService extends Service {
         final boolean embedThumbnail;
         final boolean skipExisting;
         final int concurrentFragments;
+        final int maxHeight;
 
         DownloadTask(
                 String url,
@@ -89,6 +90,7 @@ public class DownloadService extends Service {
             this.embedThumbnail = preferences.getBoolean("embed_thumbnail", true);
             this.skipExisting = preferences.getBoolean("skip_existing", false);
             this.concurrentFragments = preferences.getInt("concurrent_fragments", 4);
+            this.maxHeight = preferences.getInt("max_height", 0);
         }
     }
 
@@ -443,7 +445,7 @@ public class DownloadService extends Service {
         // Emit a stable yt-dlp progress line. youtubedl-android parses
         // "[download] 12.3% ... ETA 00:12" from stdout for its callback.
         request.addOption("--progress-template",
-                "download:[download] %(progress._percent_str)s of %(progress._total_bytes_str)s at %(progress._speed_str)s ETA 00:00");
+                "download:[download] %(progress._percent_str)s of %(progress._total_bytes_str)s at %(progress._speed_str)s ETA %(progress._eta_str)s");
         request.addOption("--progress-delta", "1");
         request.addOption("--no-colors");
         request.addOption("--no-mtime");
@@ -489,7 +491,7 @@ public class DownloadService extends Service {
                     throw new IllegalArgumentException("无效的视频/音频格式 ID");
                 }
             } else {
-                int maxHeight = preferences.getInt("max_height", 0);
+                int maxHeight = task.maxHeight;
                 format = maxHeight > 0
                         ? "bv*[height=" + maxHeight + "]+ba/b[height=" + maxHeight + "]"
                         : "bv*+ba/b";
@@ -511,7 +513,7 @@ public class DownloadService extends Service {
                 subtitleLanguages = "all";
             }
             request.addOption("--sub-langs", subtitleLanguages.trim());
-            if (!audioOnly) request.addOption("--embed-subs");
+            if (!task.audioOnly) request.addOption("--embed-subs");
         }
 
         // aria2c is the upstream native Android downloader, initialized by YtDlpEngine.
