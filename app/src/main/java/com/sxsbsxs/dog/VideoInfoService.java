@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -109,11 +110,18 @@ public final class VideoInfoService {
         }
     }
 
+    private static final AtomicInteger ACTIVE_INSPECTIONS = new AtomicInteger(0);
+
     private VideoInfoService() {}
+
+    public static boolean isInspecting() {
+        return ACTIVE_INSPECTIONS.get() > 0;
+    }
 
     public static void inspect(Context context, String url, Callback callback) {
         Context app = context.getApplicationContext();
         ExecutorService executor = Executors.newSingleThreadExecutor();
+        ACTIVE_INSPECTIONS.incrementAndGet();
         executor.execute(() -> {
             File cookieFile = null;
             try {
@@ -172,6 +180,7 @@ public final class VideoInfoService {
                 if (cookieFile != null && cookieFile.exists() && !cookieFile.delete()) {
                     cookieFile.deleteOnExit();
                 }
+                ACTIVE_INSPECTIONS.decrementAndGet();
                 executor.shutdown();
             }
         });
