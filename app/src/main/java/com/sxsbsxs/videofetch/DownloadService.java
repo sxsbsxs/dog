@@ -230,25 +230,9 @@ public class DownloadService extends Service {
 
             YoutubeDLRequest request = buildRequest(url, outputDirectory, task);
 
-            // The in-app login WebView exports a complete Netscape cookie jar.
-            // Materialize it only for this yt-dlp process; the encrypted source stays private.
+            // Keep the decrypted jar in app-private cache only for this yt-dlp process.
             temporaryCookieFile = SecureCookieStore.createTemporaryCookieFile(getApplicationContext());
-            if (temporaryCookieFile != null) {
-                request.addOption("--cookies", temporaryCookieFile.getAbsolutePath());
-            } else {
-                // Compatibility with Cookie headers saved by older VideoFetch versions.
-                // Never send an unrestricted legacy header when a scoped cookie jar exists.
-                String legacyCookie = SecureCookieStore.load(getApplicationContext());
-                if (legacyCookie != null) {
-                    legacyCookie = legacyCookie.trim();
-                    if (legacyCookie.regionMatches(true, 0, "Cookie:", 0, 7)) {
-                        legacyCookie = legacyCookie.substring(7).trim();
-                    }
-                }
-                if (legacyCookie != null && !legacyCookie.isEmpty()) {
-                    request.addOption("--add-header", "Cookie: " + legacyCookie);
-                }
-            }
+            applyCookieOptions(request, temporaryCookieFile);
 
             if (generation != activeGeneration || Thread.currentThread().isInterrupted()) {
                 throw new InterruptedException("Download canceled before starting");
@@ -296,29 +280,10 @@ public class DownloadService extends Service {
             // 0.18.1's 4-argument overload merges stderr into stdout. yt-dlp
             // progress output can be written to stderr; without this flag the
             // upstream StreamProcessExtractor never sees those lines.
-            try {
-                YoutubeDL.getInstance().execute(request, PROCESS_ID, true, progressCallback);
-            } catch (Exception firstFailure) {
-                String firstDiagnostics;
-                synchronized (processOutputTail) {
-                    firstDiagnostics = processOutputTail.toString();
-                }
-                if (!YouTubeRequestFallback.shouldRetry(url, firstFailure, firstDiagnostics)) {
-                    throw firstFailure;
-                }
-
-                // Preserve yt-dlp's default clients as the primary route. A bot
-                // challenge gets one fallback attempt using TV/Web Safari clients.
-                DownloadState.INSTANCE.updateMessage(
-                        "YouTube 触发反机器人验证，正在切换备用客户端重试…");
-                YouTubeRequestFallback.applyFallback(request);
-                try {
-                    YoutubeDL.getInstance().execute(request, PROCESS_ID, true, progressCallback);
-                } catch (Exception retryFailure) {
-                    retryFailure.addSuppressed(firstFailure);
-                    throw retryFailure;
-                }
-            }
+            executeWithYouTubeFallback(
+                    url, outputDirectory, task, temporaryCookieFile,
+                    request, progressCallback, processOutputTail
+            );
             if (generation != activeGeneration || Thread.currentThread().isInterrupted()) {
                 throw new InterruptedException("Download canceled after extraction");
             }
@@ -508,9 +473,9 @@ public class DownloadService extends Service {
         if (detail.length() > 1800) detail = detail.substring(detail.length() - 1800);
         String normalized = detail.toLowerCase(java.util.Locale.ROOT);
         String friendly;
-        if (YouTubeRequestFallback.isBotChallenge(detail) ||
-                YouTubeRequestFallback.isBotChallenge(processOutputTail)) {
-            friendly = YouTubeRequestFallback.userMessage();
+        String combinedDiagnostics = detail + "\\n" + processOutputTail;
+        if (YouTubeRequestFallback.isRetryableFailure(combinedDiagnostics)) {
+            friendly = YouTubeRequestFallback.userMessage(combinedDiagnostics);
         } else if (normalized.contains("unsupported url") ||
                 normalized.contains("no suitable extractor") ||
                 normalized.contains("no extractor")) {
@@ -542,10 +507,87 @@ public class DownloadService extends Service {
         return "下载失败：" + friendly;
     }
 
+    private void applyCookieOptions(YoutubeDLRequest request, File temporaryCookieFile) {
+        if (temporaryCookieFile != null) {
+            request.addOption("--cookies", temporaryCookieFile.getAbsolutePath());
+            return;
+        }
+
+        // Compatibility with Cookie headers saved by older VideoFetch versions.
+        // Never send an unrestricted legacy header when a scoped cookie jar exists.
+        String legacyCookie = SecureCookieStore.load(getApplicationContext());
+        if (legacyCookie != null) {
+            legacyCookie = legacyCookie.trim();
+            if (legacyCookie.regionMatches(true, 0, "Cookie:", 0, 7)) {
+                legacyCookie = legacyCookie.substring(7).trim();
+            }
+        }
+        if (legacyCookie != null && !legacyCookie.isEmpty()) {
+            request.addOption("--add-header", "Cookie: " + legacyCookie);
+        }
+    }
+
+    private void executeWithYouTubeFallback(
+            String url,
+            File outputDirectory,
+            DownloadTask task,
+            File temporaryCookieFile,
+            YoutubeDLRequest primaryRequest,
+            Function3<Float, Long, String, Unit> progressCallback,
+            StringBuilder processOutputTail
+    ) throws Exception {
+        try {
+            YoutubeDL.getInstance().execute(primaryRequest, PROCESS_ID, true, progressCallback);
+            return;
+        } catch (Exception firstFailure) {
+            String firstDiagnostics;
+            synchronized (processOutputTail) {
+                firstDiagnostics = processOutputTail.toString();
+            }
+            if (!YouTubeRequestFallback.shouldRetry(url, firstFailure, firstDiagnostics)) {
+                throw firstFailure;
+            }
+
+            DownloadState.INSTANCE.updateMessage("YouTube 验证受限，正在尝试 TV 客户端…");
+            YoutubeDLRequest tvRequest = buildRequest(url, outputDirectory, task, false);
+            applyCookieOptions(tvRequest, temporaryCookieFile);
+            YouTubeRequestFallback.applyFallback(tvRequest);
+            try {
+                YoutubeDL.getInstance().execute(tvRequest, PROCESS_ID, true, progressCallback);
+                return;
+            } catch (Exception tvFailure) {
+                DownloadState.INSTANCE.updateMessage("TV 客户端仍不可用，正在尝试 Safari HLS 流…");
+                YoutubeDLRequest safariRequest = buildRequest(url, outputDirectory, task, false);
+                applyCookieOptions(safariRequest, temporaryCookieFile);
+                YouTubeRequestFallback.applyHlsFallback(safariRequest);
+                try {
+                    YoutubeDL.getInstance().execute(safariRequest, PROCESS_ID, true, progressCallback);
+                } catch (Exception safariFailure) {
+                    safariFailure.addSuppressed(tvFailure);
+                    safariFailure.addSuppressed(firstFailure);
+                    throw safariFailure;
+                }
+            }
+        }
+    }
+
     private YoutubeDLRequest buildRequest(String url, File directory, DownloadTask task) throws IOException {
+        return buildRequest(url, directory, task, true);
+    }
+
+    /**
+     * Fallback requests use yt-dlp's native downloader. In particular, Safari
+     * may expose HLS formats that must not be forced through aria2c.
+     */
+    private YoutubeDLRequest buildRequest(
+            String url, File directory, DownloadTask task, boolean allowAria2
+    ) throws IOException {
         YoutubeDLRequest request = new YoutubeDLRequest(url);
         request.addOption("--plugin-dirs",
                 YtDlpEngine.getPluginDirectory(getApplicationContext()).getAbsolutePath());
+        if (YouTubeRequestFallback.isYoutubeUrl(url)) {
+            YouTubeRequestFallback.applyCommonOptions(request);
+        }
         String outputTemplate;
         if ("title_id".equals(task.filenameTemplate)) {
             outputTemplate = "%(title).180B [%(id)s].%(ext)s";
@@ -638,8 +680,11 @@ public class DownloadService extends Service {
             if (!task.audioOnly && task.embedSubtitles) request.addOption("--embed-subs");
         }
 
-        // aria2c is optional; yt-dlp's native downloader remains available as a fallback.
-        if (task.useAria2) request.addOption("--downloader", "libaria2c.so");
+        // aria2c is optional. Leave it disabled on fallback clients because
+        // web_safari can return HLS playlists handled by yt-dlp's native path.
+        if (allowAria2 && task.useAria2) {
+            request.addOption("--downloader", "libaria2c.so");
+        }
         return request;
     }
 
