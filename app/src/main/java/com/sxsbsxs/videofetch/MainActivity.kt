@@ -98,7 +98,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -806,22 +805,6 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                         }
                     }
                 },
-                floatingActionButton = {
-                    if (selectedTab == 0) {
-                        androidx.compose.material3.FloatingActionButton(
-                            onClick = {
-                                url = ""
-                                preview = null
-                                previewError = ""
-                                selectedVideoFormatId = ""
-                                selectedAudioFormatId = ""
-                                showInputSheet = true
-                            }
-                        ) {
-                            Icon(Icons.Default.Download, contentDescription = "新建下载")
-                        }
-                    }
-                }
             ) { padding ->
             when (selectedTab) {
                 0 -> {
@@ -851,6 +834,21 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                         fontWeight = FontWeight.Medium
                                     )
                                 )
+                                Spacer(Modifier.weight(1f))
+                                TextButton(
+                                    onClick = {
+                                        url = ""
+                                        preview = null
+                                        previewError = ""
+                                        selectedVideoFormatId = ""
+                                        selectedAudioFormatId = ""
+                                        showInputSheet = true
+                                    }
+                                ) {
+                                    Icon(Icons.Default.Download, contentDescription = null)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("新建下载")
+                                }
                             }
                         }
                         item {
