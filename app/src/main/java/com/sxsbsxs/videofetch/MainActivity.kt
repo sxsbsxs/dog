@@ -3,6 +3,7 @@ package com.sxsbsxs.videofetch
 import android.Manifest
 import android.graphics.BitmapFactory
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
@@ -157,6 +158,17 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashReporter.mark(this, "MainActivity.onCreate entered")
+
+        // Show the previous crash before running Compose again. This fallback
+        // uses only the platform AlertDialog and remains usable even when the
+        // Compose UI itself is what crashed.
+        if (CrashReporter.hasPreviousCrash(this)) {
+            showPreviousCrashReport()
+            return
+        }
+
+        CrashReporter.mark(this, "enableEdgeToEdge")
         enableEdgeToEdge()
         sharedUrl = extractHttpUrl(sharedText(intent))
 
@@ -165,12 +177,44 @@ class MainActivity : ComponentActivity() {
         ) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 42)
         }
+        CrashReporter.mark(this, "MainActivity.setContent dispatched")
         setContent {
+            androidx.compose.runtime.SideEffect {
+                CrashReporter.mark(this@MainActivity, "Compose initial composition committed")
+            }
             VideoFetchApp(
                 initialUrl = sharedUrl,
                 onDownload = ::startDownload
             )
         }
+    }
+
+    private fun showPreviousCrashReport() {
+        val report = CrashReporter.readPreviousCrash(this)
+        val visibleReport = if (report.length > 10000) {
+            report.take(10000) + "\\n\\n[日志过长，已截断显示]"
+        } else report
+
+        AlertDialog.Builder(this)
+            .setTitle("video-dl 上次启动异常")
+            .setMessage(
+                "检测到应用上次意外退出。请把下面的日志分享出来，我就能按真实异常定位。\\n\\n" +
+                    visibleReport
+            )
+            .setPositiveButton("分享崩溃日志") { _, _ ->
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_SUBJECT, "video-dl crash report")
+                    putExtra(Intent.EXTRA_TEXT, report)
+                }
+                startActivity(Intent.createChooser(send, "分享崩溃日志"))
+            }
+            .setNegativeButton("清除日志并重试") { _, _ ->
+                CrashReporter.clearPreviousCrash(this)
+                recreate()
+            }
+            .setNeutralButton("暂不处理", null)
+            .show()
     }
 
     override fun onNewIntent(intent: Intent) {
