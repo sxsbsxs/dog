@@ -5,8 +5,6 @@ package com.sxsbsxs.videofetch.ui.svg
  * Upstream: https://github.com/JunkFood02/Seal
  * License: GPL-3.0. Modified for video-dl on 2026-11-15.
  */
-public object DynamicColorImageVectors
-
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -18,6 +16,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.ImageVector.Builder
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
+
+public object DynamicColorImageVectors
 
 @Composable
 fun DynamicColorImageVectors.download(): ImageVector {
