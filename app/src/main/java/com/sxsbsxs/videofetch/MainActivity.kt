@@ -577,8 +577,12 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
         hasCookieJar = SecureCookieStore.hasCookieJar(context)
         if (result.resultCode == Activity.RESULT_OK) {
             val failedTask = download
+            val requestedTarget = url.trim().ifBlank {
+                preferences.getString("last_input_url", "").orEmpty()
+            }
             val retryBlockedYoutubeTask =
                 failedTask.lastUrl.isNotBlank() &&
+                failedTask.lastUrl == requestedTarget &&
                 YouTubeRequestFallback.isYoutubeUrl(failedTask.lastUrl) &&
                 failedTask.message.contains("YouTube 拦截了当前会话")
 
@@ -592,9 +596,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                 )
             } else {
                 Toast.makeText(context, "授权已保存，正在重新获取可用画质…", Toast.LENGTH_SHORT).show()
-                val target = url.trim().ifBlank {
-                    preferences.getString("last_input_url", "").orEmpty()
-                }
+                val target = requestedTarget
                 if (isHttpUrl(target)) {
                     url = target
                     previewLoading = true
