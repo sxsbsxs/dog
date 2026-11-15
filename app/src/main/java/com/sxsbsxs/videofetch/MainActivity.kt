@@ -1,5 +1,12 @@
 package com.sxsbsxs.videofetch
 
+/*
+ * The Compose UI in this file includes adaptations of UI patterns and components
+ * from JunkFood02/Seal (https://github.com/JunkFood02/Seal), licensed under GPL-3.0.
+ * Adapted and modified for video-dl on 2026-11-15. Download and media services remain
+ * video-dl implementations.
+ */
+
 import android.Manifest
 import android.graphics.BitmapFactory
 import android.app.Activity
