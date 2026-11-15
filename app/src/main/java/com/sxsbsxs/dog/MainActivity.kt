@@ -556,9 +556,9 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                             }
                         } else {
                             Image(
-                                painter = painterResource(id = R.drawable.ic_dog),
-                                contentDescription = null,
-                                modifier = Modifier.padding(start = 8.dp).size(28.dp)
+                                painter = painterResource(id = R.mipmap.ic_launcher),
+                                contentDescription = "Dog",
+                                modifier = Modifier.padding(start = 8.dp).size(34.dp)
                             )
                         }
                     },
@@ -566,19 +566,14 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                         Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                             Text(
                                 when (selectedTab) {
-                                    0 -> "Dog"
+                                    0 -> "下载队列"
                                     1 -> "已下载"
                                     2 -> "我的"
-                                    3 -> "下载任务"
-                                    else -> "下载设置"
+                                    3 -> "任务详情"
+                                    else -> "设置"
                                 },
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.SemiBold
-                            )
-                            if (selectedTab == 0) Text(
-                                "视频与音频下载器",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     },
@@ -596,6 +591,22 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                         }
                     }
                 )
+            },
+            floatingActionButton = {
+                if (selectedTab == 0) {
+                    ExtendedFloatingActionButton(
+                        onClick = {
+                            url = ""
+                            preview = null
+                            previewError = ""
+                            showInputSheet = true
+                        },
+                        icon = { Icon(Icons.Default.Link, contentDescription = null) },
+                        text = { Text("新建下载") },
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
             },
             bottomBar = {
                 if (selectedTab != 4) {
@@ -640,231 +651,337 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
         ) { padding ->
             when (selectedTab) {
                 0 -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(padding)
-                            .verticalScroll(rememberScrollState()).imePadding()
-                            .padding(horizontal = 20.dp, vertical = 18.dp),
-                        verticalArrangement = Arrangement.spacedBy(18.dp)
+                    val showRunning = queueFilter == "all" || queueFilter == "downloading"
+                    val showQueued = queueFilter == "all" || queueFilter == "queued"
+                    val showFinished = queueFilter == "all" || queueFilter == "finished"
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(padding),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            start = 20.dp, end = 20.dp, top = 12.dp, bottom = 112.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Text("下载任何视频", style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                            Text("粘贴链接，解析后挑选你需要的格式。",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(28.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                        ) {
-                            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(
-                                        modifier = Modifier.size(38.dp),
-                                        shape = RoundedCornerShape(14.dp),
-                                        color = MaterialTheme.colorScheme.secondaryContainer
-                                    ) {
-                                        Icon(Icons.Default.Link, null, modifier = Modifier.padding(9.dp),
-                                            tint = MaterialTheme.colorScheme.onSecondaryContainer)
-                                    }
-                                    Spacer(Modifier.width(10.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text("视频链接", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                                        Text("支持从浏览器或其他 App 分享",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                    TextButton(onClick = pasteUrl) {
-                                        Icon(Icons.Default.ContentPaste, null, modifier = Modifier.size(17.dp))
-                                        Spacer(Modifier.width(5.dp))
-                                        Text("粘贴")
-                                    }
-                                }
-
-                                OutlinedTextField(
-                                    value = url,
-                                    onValueChange = {
-                                        url = it
-                                        maxHeight = 0
-                                        preferences.edit().putString("last_input_url", it).putInt("max_height", 0).apply()
-                                        preview = null
-                                        previewError = ""
-                                        showFormatSheet = false
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    minLines = 2,
-                                    maxLines = 4,
-                                    placeholder = { Text("https://…") },
-                                    trailingIcon = {
-                                        if (url.isNotEmpty()) IconButton(onClick = {
-                                            url = ""
-                                            maxHeight = 0
-                                            preferences.edit().putInt("max_height", 0).apply()
-                                            preview = null
-                                            previewError = ""
-                                            showFormatSheet = false
-                                        }) { Icon(Icons.Default.Close, contentDescription = "清空链接") }
-                                    },
-                                    keyboardOptions = KeyboardOptions(
-                                        capitalization = KeyboardCapitalization.None, imeAction = ImeAction.Go
-                                    ),
-                                    keyboardActions = KeyboardActions(onGo = {
-                                        if (preview == null) startPreview() else showFormatSheet = true
-                                    }),
-                                    shape = RoundedCornerShape(20.dp),
-                                    colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                        disabledContainerColor = MaterialTheme.colorScheme.surface,
-                                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-                                        unfocusedIndicatorColor = MaterialTheme.colorScheme.outlineVariant,
-                                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text(
+                                        if (download.running) "正在处理下载" else "管理你的下载",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.SemiBold
                                     )
-                                )
-
-                                Button(
-                                    onClick = { if (preview == null) startPreview() else showFormatSheet = true },
-                                    enabled = url.isNotBlank() && !previewLoading && !engineUpdating &&
-                                        !EngineUpdateManager.isUpdating(),
-                                    modifier = Modifier.fillMaxWidth().height(54.dp),
-                                    shape = RoundedCornerShape(18.dp)
+                                    Text(
+                                        when {
+                                            download.running && download.queuedCount > 0 ->
+                                                "1 个正在下载 · ${download.queuedCount} 个等待中"
+                                            download.running -> "当前任务正在执行"
+                                            download.lastUrl.isNotBlank() && download.progress == 100 -> "最近一次下载已完成"
+                                            download.lastUrl.isNotBlank() -> "最近一次任务已结束"
+                                            else -> "粘贴链接即可添加新任务"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = MaterialTheme.colorScheme.secondaryContainer
                                 ) {
-                                    if (previewLoading) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(19.dp), strokeWidth = 2.dp,
-                                            color = MaterialTheme.colorScheme.onPrimary
-                                        )
-                                        Spacer(Modifier.width(10.dp))
-                                        Text("正在解析…")
-                                    } else {
-                                        Icon(Icons.Default.Download, null)
-                                        Spacer(Modifier.width(9.dp))
-                                        Text(if (preview == null) "解析视频" else "选择格式并下载",
-                                            fontWeight = FontWeight.SemiBold)
-                                    }
+                                    Icon(
+                                        Icons.Default.Download,
+                                        contentDescription = null,
+                                        modifier = Modifier.padding(11.dp).size(22.dp),
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
                                 }
                             }
                         }
+                        item {
+                            ChoiceChipRows(
+                                options = listOf(
+                                    "all" to "全部",
+                                    "downloading" to "下载中",
+                                    "queued" to "等待中",
+                                    "finished" to "最近完成"
+                                ),
+                                selected = queueFilter,
+                                onSelected = { queueFilter = it }
+                            )
+                        }
 
-                        if (preview != null) {
-                            val info = preview!!
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(24.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                            ) {
-                                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                                        Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                                        Text("解析完成", style = MaterialTheme.typography.labelLarge,
-                                            color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-                                        Spacer(Modifier.weight(1f))
-                                        TextButton(onClick = startPreview) { Text("重新解析") }
-                                    }
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(13.dp),
-                                        verticalAlignment = Alignment.Top
+                        if (download.running && showRunning) {
+                            item {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(24.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                                    ),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth().padding(18.dp),
+                                        verticalArrangement = Arrangement.spacedBy(13.dp)
                                     ) {
-                                        VideoThumbnail(url = info.thumbnail, modifier = Modifier.size(width = 124.dp, height = 86.dp))
-                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                            Text(info.title, style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.SemiBold, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                                            if (info.uploader.isNotBlank()) Text(info.uploader,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Surface(
+                                                modifier = Modifier.size(46.dp),
+                                                shape = RoundedCornerShape(16.dp),
+                                                color = MaterialTheme.colorScheme.primaryContainer
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Download,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.padding(11.dp),
+                                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                            }
+                                            Spacer(Modifier.width(12.dp))
+                                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                                Text(
+                                                    if (download.audioOnly) "正在下载音频" else "正在下载视频",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                Text(
+                                                    if (download.progressKnown) "下载进度" else "正在连接媒体源",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            if (download.progressKnown) {
+                                                Text(
+                                                    "${download.progress}%",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            } else {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(22.dp),
+                                                    strokeWidth = 2.dp
+                                                )
+                                            }
+                                        }
+                                        if (download.formatLabel.isNotBlank()) {
                                             Text(
-                                                listOf(info.duration, info.resolution, info.fileSize)
-                                                    .filter { it.isNotBlank() && it != "未知" }.joinToString(" · "),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                download.formatLabel,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.primary
                                             )
                                         }
-                                    }
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        FilterChip(
-                                            selected = true, onClick = { showFormatSheet = true },
-                                            label = {
-                                                Text(
-                                                    if (info.formats.none { it.hasVideo }) "画质待确认"
-                                                    else info.formats.count { it.hasVideo }.toString() + " 条视频流"
-                                                )
-                                            },
-                                            leadingIcon = { Icon(Icons.Default.Tune, null, modifier = Modifier.size(16.dp)) }
-                                        )
-                                        FilterChip(selected = true, onClick = { showFormatSheet = true },
-                                            label = { Text(if (audioOnly) "仅音频" else "视频") })
-                                    }
-                                }
-                            }
-                        } else if (!previewLoading && previewError.isBlank()) {
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(22.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerLow
-                            ) {
-                                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(13.dp)) {
-                                    Icon(Icons.Default.ContentPaste, null, tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(24.dp))
-                                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                        Text("简单三步完成下载", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                                        Text("粘贴链接 · 解析可用格式 · 选择后加入任务",
+                                        if (download.progressKnown) {
+                                            LinearProgressIndicator(
+                                                progress = { download.progress / 100f },
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        } else {
+                                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                                        }
+                                        Text(
+                                            download.message,
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedButton(
+                                                onClick = { DownloadService.cancel(context) },
+                                                modifier = Modifier.weight(1f),
+                                                shape = RoundedCornerShape(14.dp)
+                                            ) { Text("取消任务") }
+                                            if (download.queuedCount > 0) {
+                                                TextButton(
+                                                    onClick = { DownloadService.clearQueue(context) },
+                                                    modifier = Modifier.weight(1f)
+                                                ) { Text("清空等待项") }
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
 
-                        if (download.running || download.progress > 0) {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(22.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                            ) {
-                                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("正在下载", modifier = Modifier.weight(1f),
-                                            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                                        if (download.progressKnown) Text(download.progress.toString() + "%",
-                                            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary)
-                                        else CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                                    }
-                                    if (download.progressKnown) LinearProgressIndicator(
-                                        progress = { download.progress / 100f }, modifier = Modifier.fillMaxWidth()
-                                    ) else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                                    Text(download.message, style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    TextButton(onClick = { selectedTab = 3 }, modifier = Modifier.align(Alignment.End)) {
-                                        Text("查看任务")
+                        if (download.running && showQueued && download.queuedLabels.isNotEmpty()) {
+                            item {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        "等待队列",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        "${download.queuedCount} 项",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            items(download.queuedLabels.take(12)) { label ->
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surface
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = MaterialTheme.colorScheme.surfaceContainerHighest
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Schedule,
+                                                null,
+                                                modifier = Modifier.padding(8.dp).size(18.dp),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Spacer(Modifier.width(12.dp))
+                                        Text(
+                                            label,
+                                            modifier = Modifier.weight(1f),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            "等待中",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
                                 }
                             }
                         }
 
-                        if (previewError.isNotBlank()) {
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.errorContainer
-                            ) {
-                                Text(previewError, modifier = Modifier.padding(14.dp),
-                                    color = MaterialTheme.colorScheme.onErrorContainer,
-                                    style = MaterialTheme.typography.bodySmall)
+                        if (!download.running && showFinished && download.lastUrl.isNotBlank()) {
+                            item {
+                                val completed = download.progress == 100
+                                val failed = download.message.startsWith("下载失败")
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(24.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                                    ),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth().padding(18.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Surface(
+                                                modifier = Modifier.size(44.dp),
+                                                shape = RoundedCornerShape(15.dp),
+                                                color = if (failed) MaterialTheme.colorScheme.errorContainer
+                                                    else MaterialTheme.colorScheme.primaryContainer
+                                            ) {
+                                                Icon(
+                                                    if (completed) Icons.Default.CheckCircle else Icons.Default.History,
+                                                    null,
+                                                    modifier = Modifier.padding(11.dp),
+                                                    tint = if (failed) MaterialTheme.colorScheme.onErrorContainer
+                                                        else MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                            }
+                                            Spacer(Modifier.width(12.dp))
+                                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                Text(
+                                                    when {
+                                                        failed -> "上次下载失败"
+                                                        completed -> "最近下载已完成"
+                                                        else -> "上次任务已结束"
+                                                    },
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                Text(
+                                                    download.formatLabel.ifBlank { download.message },
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 2,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            if (completed) {
+                                                Text(
+                                                    "100%",
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            download.lastUrl,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        if (download.outputPath.isNotBlank()) {
+                                            Text(
+                                                download.outputPath,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                        TextButton(
+                                            onClick = {
+                                                historyJson = DownloadHistoryStore.read(context)
+                                                selectedTab = 1
+                                            },
+                                            modifier = Modifier.align(Alignment.End)
+                                        ) { Text("查看文件记录") }
+                                    }
+                                }
+                            }
+                        }
+
+                        val hasVisibleTask =
+                            (download.running && (showRunning || (showQueued && download.queuedLabels.isNotEmpty()))) ||
+                                (!download.running && showFinished && download.lastUrl.isNotBlank())
+                        if (!hasVisibleTask) {
+                            item {
+                                EmptyState(
+                                    icon = when (queueFilter) {
+                                        "downloading" -> Icons.Default.Download
+                                        "queued" -> Icons.Default.Schedule
+                                        "finished" -> Icons.Default.History
+                                        else -> Icons.Default.Inbox
+                                    },
+                                    title = when (queueFilter) {
+                                        "downloading" -> "没有正在下载的任务"
+                                        "queued" -> "没有等待中的任务"
+                                        "finished" -> "还没有完成记录"
+                                        else -> "下载队列还是空的"
+                                    },
+                                    description = when (queueFilter) {
+                                        "downloading" -> "新建一个下载任务后，进度会显示在这里。"
+                                        "queued" -> "添加多个链接后，后续任务会排在这里。"
+                                        "finished" -> "最近完成或失败的任务会显示在这里。"
+                                        else -> "把视频链接交给 Dog，格式和画质会在解析后选择。"
+                                    },
+                                    action = "新建下载",
+                                    onAction = {
+                                        url = ""
+                                        preview = null
+                                        previewError = ""
+                                        showInputSheet = true
+                                    }
+                                )
                             }
                         }
                     }
                 }
-
                 3 -> {
                     Column(
                         modifier = Modifier.fillMaxSize().padding(padding)
