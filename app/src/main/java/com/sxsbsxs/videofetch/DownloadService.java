@@ -611,6 +611,10 @@ public class DownloadService extends Service {
             StringBuilder processOutputTail
     ) throws Exception {
         try {
+            if (YouTubeRequestFallback.isYoutubeUrl(url)) {
+                // Never use yt-dlp's cookie-sensitive "default" client bundle.
+                YouTubeRequestFallback.applyFallback(primaryRequest);
+            }
             YoutubeDL.getInstance().execute(primaryRequest, PROCESS_ID, true, progressCallback);
             return;
         } catch (Exception firstFailure) {
@@ -622,40 +626,28 @@ public class DownloadService extends Service {
                 throw firstFailure;
             }
 
-            DownloadState.INSTANCE.updateMessage("YouTube 验证受限，正在尝试 TV 客户端…");
-            YoutubeDLRequest tvRequest = buildRequest(url, outputDirectory, task, false, true);
-            applyCookieOptions(tvRequest, temporaryCookieFile);
-            YouTubeRequestFallback.applyFallback(tvRequest);
+            DownloadState.INSTANCE.updateMessage("TV 客户端不可用，正在尝试 Safari HLS 流…");
+            YoutubeDLRequest safariRequest = buildRequest(url, outputDirectory, task, false, true);
+            applyCookieOptions(safariRequest, temporaryCookieFile);
+            YouTubeRequestFallback.applyHlsFallback(safariRequest);
             try {
-                YoutubeDL.getInstance().execute(tvRequest, PROCESS_ID, true, progressCallback);
+                YoutubeDL.getInstance().execute(safariRequest, PROCESS_ID, true, progressCallback);
                 return;
-            } catch (Exception tvFailure) {
-                DownloadState.INSTANCE.updateMessage("TV 客户端仍不可用，正在尝试 Safari HLS 流…");
-                YoutubeDLRequest safariRequest = buildRequest(url, outputDirectory, task, false, true);
-                applyCookieOptions(safariRequest, temporaryCookieFile);
-                YouTubeRequestFallback.applyHlsFallback(safariRequest);
+            } catch (Exception safariFailure) {
+                // Some account cookies are stale or trigger a logged-in client
+                // challenge. Retry public Safari HLS without account cookies.
+                DownloadState.INSTANCE.updateMessage(
+                        "登录态 Safari 不可用，正在尝试不带账号 Cookie 的公开 HLS…");
+                YoutubeDLRequest guestSafariRequest =
+                        buildRequest(url, outputDirectory, task, false, true);
+                YouTubeRequestFallback.applyHlsFallback(guestSafariRequest);
                 try {
-                    YoutubeDL.getInstance().execute(safariRequest, PROCESS_ID, true, progressCallback);
-                    return;
-                } catch (Exception safariFailure) {
-                    // Some accounts have stale/rotated cookies or cookies that
-                    // cause YouTube's logged-in web client flow to be rejected.
-                    // A public Safari HLS attempt without account cookies is a
-                    // useful last fallback for videos that are publicly playable.
-                    DownloadState.INSTANCE.updateMessage(
-                            "登录态 Safari 不可用，正在尝试不带账号 Cookie 的公开 HLS…");
-                    YoutubeDLRequest guestSafariRequest =
-                            buildRequest(url, outputDirectory, task, false, true);
-                    YouTubeRequestFallback.applyHlsFallback(guestSafariRequest);
-                    try {
-                        YoutubeDL.getInstance().execute(
-                                guestSafariRequest, PROCESS_ID, true, progressCallback);
-                    } catch (Exception guestFailure) {
-                        guestFailure.addSuppressed(safariFailure);
-                        guestFailure.addSuppressed(tvFailure);
-                        guestFailure.addSuppressed(firstFailure);
-                        throw guestFailure;
-                    }
+                    YoutubeDL.getInstance().execute(
+                            guestSafariRequest, PROCESS_ID, true, progressCallback);
+                } catch (Exception guestFailure) {
+                    guestFailure.addSuppressed(safariFailure);
+                    guestFailure.addSuppressed(firstFailure);
+                    throw guestFailure;
                 }
             }
         }
