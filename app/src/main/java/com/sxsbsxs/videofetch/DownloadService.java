@@ -614,7 +614,7 @@ public class DownloadService extends Service {
         }
 
         // aria2c is optional; yt-dlp's native downloader remains available as a fallback.
-        if (task.useAria2) request.addOption("--downloader", "libaria2.so");
+        if (task.useAria2) request.addOption("--downloader", "libaria2c.so");
         return request;
     }
 
