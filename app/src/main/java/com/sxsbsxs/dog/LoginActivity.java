@@ -388,7 +388,7 @@ public class LoginActivity extends Activity {
                 return "https://vimeo.com/";
             }
             if (host.endsWith(".nicovideo.jp") || host.equals("nicovideo.jp")) {
-                return "https://www.nicovideo.jp/";
+                return "https://account.nicovideo.jp/login";
             }
             if (host.endsWith(".weibo.com") || host.equals("weibo.com") ||
                     host.endsWith(".weibo.cn") || host.equals("weibo.cn")) {
