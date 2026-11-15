@@ -399,6 +399,8 @@ public final class VideoInfoService {
     }
 
     private static String niconicoRouteLabel(String mode) {
+        if ("v3-dms".equals(mode)) return "标准 v3 + DMS";
+        if ("v3_guest-dms".equals(mode)) return "游客 v3_guest + DMS";
         if ("watchV4-dms".equals(mode)) return "视频页 $watchV4 + DMS";
         if ("server-response-dms".equals(mode)) return "视频页 server-response + DMS";
         if ("v3_guest".equals(mode)) return "游客 v3_guest";
