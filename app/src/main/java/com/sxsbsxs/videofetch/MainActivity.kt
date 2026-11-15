@@ -24,8 +24,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.res.painterResource
@@ -155,6 +153,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Date
 import java.util.Locale
+import com.sxsbsxs.videofetch.ui.component.SelectionGroupItem
+import com.sxsbsxs.videofetch.ui.component.SelectionGroupRow
 import com.sxsbsxs.videofetch.ui.svg.download
 import com.sxsbsxs.videofetch.ui.svg.videoSteaming
 
@@ -2797,39 +2797,15 @@ private fun ChoiceChipRows(
     selected: String,
     onSelected: (String) -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    SelectionGroupRow(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
     ) {
         options.forEach { (value, label) ->
-            val active = selected == value
-            val corner by animateDpAsState(
-                targetValue = if (active) 28.dp else 12.dp,
-                label = "sealSelectionShape"
-            )
-            val container by animateColorAsState(
-                targetValue = if (active) MaterialTheme.colorScheme.primaryContainer
-                    else MaterialTheme.colorScheme.surfaceContainer,
-                label = "sealSelectionContainer"
-            )
-            val content by animateColorAsState(
-                targetValue = if (active) MaterialTheme.colorScheme.onPrimaryContainer
-                    else MaterialTheme.colorScheme.onSurface,
-                label = "sealSelectionContent"
-            )
-            Surface(
-                selected = active,
-                onClick = { onSelected(value) },
-                shape = RoundedCornerShape(corner),
-                color = container,
-                contentColor = content
+            SelectionGroupItem(
+                selected = selected == value,
+                onClick = { onSelected(value) }
             ) {
-                Box(
-                    modifier = Modifier.heightIn(min = 40.dp).padding(horizontal = 16.dp, vertical = 9.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
-                }
+                Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
