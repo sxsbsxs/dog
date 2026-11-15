@@ -370,7 +370,7 @@ public final class VideoInfoService {
         if (qualities.isEmpty()) {
             if (niconico) {
                 String route = "v3_guest".equals(niconicoApiMode) ? "游客 v3_guest 接口" :
-                        "普通 v3 接口";
+                        ("v3".equals(niconicoApiMode) ? "标准 v3 接口" : "未能确认 API 路径");
                 return "Niconico " + route + "没有返回可用视频流。请检查授权状态、视频可用性和账号权限。";
             }
             return "解析器没有收到可用的视频画质列表；下载时会由源站选择默认格式。";
@@ -380,7 +380,7 @@ public final class VideoInfoService {
         if (niconico && highestHeight <= 720) {
             String route = "v3_guest".equals(niconicoApiMode)
                     ? "游客接口 v3_guest"
-                    : "标准接口 v3";
+                    : ("v3".equals(niconicoApiMode) ? "标准接口 v3" : "未能确认的接口路径");
             String account = hasNiconicoSession
                     ? "当前已检测到 Niconico 登录 Cookie"
                     : "当前没有检测到 Niconico 登录 Cookie";
