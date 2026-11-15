@@ -1915,19 +1915,44 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                                 selected = audioFormat,
                                                 onSelected = { audioFormat = it }
                                             )
-                                            SettingsToggleRow(
-                                                title = "嵌入封面图片",
-                                                description = "将视频封面写入音频文件",
-                                                checked = embedThumbnail,
-                                                onCheckedChange = { embedThumbnail = it }
+                                            Text("音频编码质量", style = MaterialTheme.typography.labelLarge,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            ChoiceChipRows(
+                                                options = listOf("0" to "最佳", "2" to "高", "5" to "均衡", "7" to "省空间", "10" to "最小"),
+                                                selected = audioQuality,
+                                                onSelected = { audioQuality = it }
                                             )
                                         }
+                                        SettingsToggleRow(
+                                            "嵌入元数据",
+                                            "将标题、作者等信息写入媒体文件",
+                                            embedMetadata
+                                        ) { embedMetadata = it }
+                                        SettingsToggleRow(
+                                            "嵌入封面图片",
+                                            "将封面写入支持封面的音频或视频容器",
+                                            embedThumbnail
+                                        ) { embedThumbnail = it }
+                                        SettingsToggleRow(
+                                            "额外保存封面图片",
+                                            "同时保留独立的 JPG / WebP 封面文件",
+                                            writeThumbnail
+                                        ) { writeThumbnail = it }
                                     }
                                 }
                                 "advanced" -> {
-                                    SettingsGroup("字幕与播放列表", "默认仅下载当前视频，避免意外下载整张列表") {
-                                        SettingsToggleRow("同时下载字幕", "包含网站提供的自动字幕", downloadSubtitles) { downloadSubtitles = it }
-                                        if (downloadSubtitles) {
+                                    SettingsGroup("字幕与播放列表", "字幕可单独保存，也可以封装进视频文件") {
+                                        SettingsToggleRow(
+                                            "下载网站字幕",
+                                            "下载网站提供的人工字幕轨道",
+                                            downloadSubtitles
+                                        ) { downloadSubtitles = it }
+                                        SettingsToggleRow(
+                                            "下载自动生成字幕",
+                                            "下载语音识别生成的字幕轨道",
+                                            downloadAutoSubtitles
+                                        ) { downloadAutoSubtitles = it }
+                                        if (downloadSubtitles || downloadAutoSubtitles) {
                                             OutlinedTextField(
                                                 value = subtitleLanguages,
                                                 onValueChange = { subtitleLanguages = it },
@@ -1938,19 +1963,81 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                                 placeholder = { Text("all 或 zh-Hans,zh-CN,en") },
                                                 supportingText = { Text("输入 all 下载全部语言，或填写语言代码") }
                                             )
+                                            SettingsToggleRow(
+                                                "将字幕嵌入视频",
+                                                "关闭后字幕仍会以独立 .srt / .vtt 文件保存",
+                                                embedSubtitles
+                                            ) { embedSubtitles = it }
                                         }
-                                        SettingsToggleRow("下载整个播放列表", "开启后按顺序下载列表中的视频", downloadPlaylist) { downloadPlaylist = it }
-                                        SettingsToggleRow("跳过已经下载过的视频", "在本机保存 yt-dlp 下载归档", skipExisting) { skipExisting = it }
+                                        SettingsToggleRow(
+                                            "下载整个播放列表",
+                                            "开启后按顺序下载列表中的视频",
+                                            downloadPlaylist
+                                        ) { downloadPlaylist = it }
+                                        SettingsToggleRow(
+                                            "跳过已经下载过的视频",
+                                            "在本机保存 yt-dlp 下载归档",
+                                            skipExisting
+                                        ) { skipExisting = it }
+                                    }
+                                    SettingsGroup("文件命名", "选择下载文件的名称规则") {
+                                        ChoiceChipRows(
+                                            options = listOf(
+                                                "title" to "视频标题",
+                                                "title_id" to "标题 + ID",
+                                                "id_title" to "ID + 标题"
+                                            ),
+                                            selected = filenameTemplate,
+                                            onSelected = { filenameTemplate = it }
+                                        )
                                     }
                                 }
                                 "storage" -> {
-                                    SettingsGroup("下载目录", "video-dl 保存文件的位置") {
+                                    SettingsGroup("下载目录", "选择完成后媒体文件保存的位置") {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.Folder, null, tint = MaterialTheme.colorScheme.primary)
+                                            Icon(
+                                                Icons.Default.Folder,
+                                                null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
                                             Spacer(Modifier.width(12.dp))
                                             Column(Modifier.weight(1f)) {
-                                                Text("Download/video-dl", style = MaterialTheme.typography.titleMedium)
-                                                Text("Android 公共下载目录", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text(
+                                                    downloadFolderLabel,
+                                                    style = MaterialTheme.typography.titleMedium
+                                                )
+                                                Text(
+                                                    if (downloadTreeUri.isBlank())
+                                                        "默认公共目录：Download/video-dl"
+                                                    else "已获得该文件夹的长期读写授权",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                        OutlinedButton(
+                                            onClick = { folderPicker.launch(null) },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(14.dp)
+                                        ) {
+                                            Icon(Icons.Default.FolderOpen, contentDescription = null)
+                                            Spacer(Modifier.width(8.dp))
+                                            Text("选择下载文件夹")
+                                        }
+                                        if (downloadTreeUri.isNotBlank()) {
+                                            TextButton(
+                                                onClick = {
+                                                    preferences.edit().remove("download_tree_uri").apply()
+                                                    downloadTreeUri = ""
+                                                    Toast.makeText(
+                                                        context,
+                                                        "已恢复默认下载目录",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                },
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text("恢复默认目录")
                                             }
                                         }
                                     }
@@ -1958,9 +2045,33 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                 "engine" -> {
                                     SettingsGroup("下载速度", "较高并发会增加网络和设备负载") {
                                         ChoiceChipRows(
-                                            options = listOf("1" to "省流量", "4" to "均衡", "8" to "高速"),
+                                            options = listOf("1" to "省流量", "2" to "稳定", "4" to "均衡", "6" to "快速", "8" to "高速"),
                                             selected = concurrentFragments.toString(),
                                             onSelected = { concurrentFragments = it.toIntOrNull() ?: 4 }
+                                        )
+                                    }
+                                    SettingsGroup("网络与重试", "按网络情况控制下载方式与失败重试次数") {
+                                        SettingsToggleRow(
+                                            "使用 aria2c 加速",
+                                            "使用内置 aria2c 下载器处理媒体分片",
+                                            useAria2
+                                        ) { useAria2 = it }
+                                        Text("失败重试次数", style = MaterialTheme.typography.labelLarge,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        ChoiceChipRows(
+                                            options = listOf("3" to "3 次", "10" to "10 次", "20" to "20 次", "30" to "30 次"),
+                                            selected = downloadRetries.toString(),
+                                            onSelected = { downloadRetries = it.toIntOrNull() ?: 10 }
+                                        )
+                                        OutlinedTextField(
+                                            value = rateLimit,
+                                            onValueChange = { rateLimit = it.filter { ch -> ch.isLetterOrDigit() || ch == '.' }.take(12) },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            singleLine = true,
+                                            label = { Text("下载限速（可选）") },
+                                            placeholder = { Text("如 2M、800K，留空不限速") },
+                                            supportingText = { Text("支持 K / M / G；只限制单任务下载速度") },
+                                            shape = RoundedCornerShape(14.dp)
                                         )
                                     }
                                     SettingsGroup("解析引擎", "网站改版导致解析失败时，可以尝试更新 yt-dlp") {
