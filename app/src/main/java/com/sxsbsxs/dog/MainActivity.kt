@@ -1458,108 +1458,241 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
             ModalBottomSheet(
                 onDismissRequest = { showFormatSheet = false },
                 sheetState = formatSheetState,
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 2.dp
+                containerColor = MaterialTheme.colorScheme.background,
+                tonalElevation = 0.dp
             ) {
                 val info = preview!!
+                val videoOptions = info.formats.filter { it.hasVideo }
+                val audioOptions = info.formats.filter { it.hasAudio && !it.hasVideo }
+                val qualityGroups = videoOptions.filter { it.height > 0 }
+                    .groupBy { it.height }
+                    .toSortedMap(compareByDescending { it })
+
                 Column(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 720.dp)
-                        .verticalScroll(rememberScrollState()).imePadding()
-                        .padding(horizontal = 22.dp).padding(bottom = 28.dp),
-                    verticalArrangement = Arrangement.spacedBy(17.dp)
+                    modifier = Modifier.fillMaxWidth()
+                        .heightIn(max = 780.dp)
+                        .verticalScroll(rememberScrollState())
+                        .imePadding()
+                        .padding(horizontal = 18.dp)
+                        .padding(top = 6.dp, bottom = 28.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text("下载设置", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                            Text("根据当前视频的真实格式选择", style = MaterialTheme.typography.bodySmall,
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("下载选项", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            Text("选择要保存的清晰度和格式", style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         IconButton(onClick = { showFormatSheet = false }) {
                             Icon(Icons.Default.Close, contentDescription = "关闭")
                         }
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        VideoThumbnail(url = info.thumbnail, modifier = Modifier.size(width = 92.dp, height = 66.dp))
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(info.title, style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Text(listOf(info.duration, info.resolution).filter { it.isNotBlank() }.joinToString(" · "),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                        Text("下载内容", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        ChoiceChipRows(
-                            options = listOf("video" to "视频 + 音频", "audio" to "仅音频"),
-                            selected = if (audioOnly) "audio" else "video",
-                            onSelected = { audioOnly = it == "audio" }
-                        )
-                    }
-                    val videoOptions = info.formats.filter { it.hasVideo }
-                    val audioOptions = info.formats.filter { it.hasAudio && !it.hasVideo }
-                    val selectedVideoOption = videoOptions.firstOrNull { it.formatId == selectedVideoFormatId }
 
-                    if (!audioOnly) {
-                        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                            Text("视频流", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                "这里列出 yt-dlp 实际解析到的视频流。选中后会按真实格式 ID 下载。",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(26.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Column {
+                            VideoThumbnail(
+                                url = info.thumbnail,
+                                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
                             )
-                            FilterChip(
-                                selected = selectedVideoFormatId.isBlank(),
-                                onClick = {
-                                    selectedVideoFormatId = ""
-                                    selectedAudioFormatId = ""
-                                    maxHeight = 0
-                                    preferences.edit().putInt("max_height", 0).apply()
-                                },
-                                label = { Text("自动选择最佳") }
-                            )
-                            if (videoOptions.isEmpty()) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(17.dp),
+                                verticalArrangement = Arrangement.spacedBy(7.dp)
+                            ) {
+                                Text("标题", style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text(
-                                    info.qualityNotice.ifBlank {
-                                        "解析器没有返回可手动选择的视频流，将使用 yt-dlp 自动选择。"
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    info.title,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
                                 )
-                            } else {
-                                FormatSelectionList(
-                                    options = videoOptions,
-                                    selectedId = selectedVideoFormatId,
-                                    onSelected = { id ->
-                                        selectedVideoFormatId = id
-                                        val chosen = videoOptions.firstOrNull { it.formatId == id }
-                                        maxHeight = chosen?.height ?: 0
-                                        if (chosen?.hasAudio == true) selectedAudioFormatId = ""
-                                        else if (selectedAudioFormatId.isBlank()) {
-                                            selectedAudioFormatId = audioOptions.firstOrNull()?.formatId.orEmpty()
-                                        }
-                                        preferences.edit().putInt("max_height", maxHeight).apply()
-                                    }
+                                val meta = listOf(info.uploader, info.duration)
+                                    .filter { it.isNotBlank() }.joinToString(" · ")
+                                if (meta.isNotBlank()) {
+                                    Text(meta, style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(top = 5.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant
                                 )
-                            }
-                        }
-
-                        if (selectedVideoOption != null && !selectedVideoOption.hasAudio) {
-                            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                                Text("音频流", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                                Text(
-                                    "视频与音频会在下载后自动合并。",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                if (audioOptions.isEmpty()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Download, null, tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(19.dp))
+                                    Spacer(Modifier.width(9.dp))
                                     Text(
-                                        "没有单独的音频流列表，下载时将交给 yt-dlp 选择最佳音频。",
+                                        if (audioOnly) "仅提取音频，保存为所选音频格式"
+                                        else "视频与音频将合并为一个文件",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+                                }
+                            }
+                        }
+                    }
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(25.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(17.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("下载内容", style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                ChoiceChipRows(
+                                    options = listOf("video" to "视频", "audio" to "音频"),
+                                    selected = if (audioOnly) "audio" else "video",
+                                    onSelected = { audioOnly = it == "audio" }
+                                )
+                            }
+
+                            if (!audioOnly) {
+                                Text("选择图像质量", style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold)
+                                val bestOption = bestVideoFormat(videoOptions)
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth().clickable {
+                                        selectedVideoFormatId = ""
+                                        selectedAudioFormatId = bestAudioFormat(audioOptions)?.formatId.orEmpty()
+                                        maxHeight = 0
+                                        preferences.edit().putInt("max_height", 0).apply()
+                                    },
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = if (selectedVideoFormatId.isBlank())
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.surfaceContainerLow,
+                                    border = BorderStroke(
+                                        if (selectedVideoFormatId.isBlank()) 2.dp else 1.dp,
+                                        if (selectedVideoFormatId.isBlank()) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.outlineVariant
+                                    )
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(15.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                            Text("自动（最高品质）", style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold)
+                                            Text(
+                                                if (bestOption != null && bestOption.height > 0)
+                                                    "本次解析最高返回 ${bestOption.height}p，下载时自动选择最佳流"
+                                                else "由 yt-dlp 根据源站实际提供的格式自动选择",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        RadioButton(
+                                            selected = selectedVideoFormatId.isBlank(),
+                                            onClick = {
+                                                selectedVideoFormatId = ""
+                                                selectedAudioFormatId = bestAudioFormat(audioOptions)?.formatId.orEmpty()
+                                                maxHeight = 0
+                                                preferences.edit().putInt("max_height", 0).apply()
+                                            }
+                                        )
+                                    }
+                                }
+
+                                if (qualityGroups.isNotEmpty()) {
+                                    qualityGroups.entries.toList().chunked(2).forEach { pair ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            pair.forEach { entry ->
+                                                val option = entry.value.maxWithOrNull(
+                                                    compareBy<VideoInfoService.FormatOption> { it.fps }
+                                                        .thenBy { it.bitrate }
+                                                )!!
+                                                QualityOptionCard(
+                                                    height = entry.key,
+                                                    detail = listOf(
+                                                        if (option.fps > 0) "${option.fps}fps" else "",
+                                                        option.ext.uppercase(Locale.ROOT),
+                                                        if (option.filesize > 0L) formatBytesForUi(option.filesize) else ""
+                                                    ).filter { it.isNotBlank() }.joinToString(" · "),
+                                                    selected = selectedVideoFormatId == option.formatId,
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    selectedVideoFormatId = option.formatId
+                                                    maxHeight = entry.key
+                                                    if (option.hasAudio) {
+                                                        selectedAudioFormatId = ""
+                                                    } else if (selectedAudioFormatId.isBlank()) {
+                                                        selectedAudioFormatId = bestAudioFormat(audioOptions)?.formatId.orEmpty()
+                                                    }
+                                                    preferences.edit().putInt("max_height", maxHeight).apply()
+                                                }
+                                            }
+                                            if (pair.size == 1) Spacer(Modifier.weight(1f))
+                                        }
+                                    }
+                                } else if (videoOptions.isNotEmpty()) {
+                                    Text("源站没有返回标准分辨率字段，以下为实际格式：",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    FormatSelectionList(
+                                        options = videoOptions,
+                                        selectedId = selectedVideoFormatId,
+                                        onSelected = { selectedVideoFormatId = it }
+                                    )
+                                } else {
+                                    Text(
+                                        info.qualityNotice.ifBlank { "源站没有返回可用的视频流。" },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                if (selectedVideoOption != null && !selectedVideoOption.hasAudio) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text("音频轨道", style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.SemiBold)
+                                        if (audioOptions.isEmpty()) {
+                                            Text("没有返回独立音频列表，将由 yt-dlp 自动匹配。",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        } else {
+                                            FormatSelectionList(
+                                                options = audioOptions,
+                                                selectedId = selectedAudioFormatId,
+                                                onSelected = { selectedAudioFormatId = it }
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("保存格式", style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold)
+                                    ChoiceChipRows(
+                                        options = listOf("mp4" to "MP4", "mkv" to "MKV", "webm" to "WebM"),
+                                        selected = videoContainer,
+                                        onSelected = { videoContainer = it }
+                                    )
+                                }
+                            } else {
+                                Text("选择音频来源", style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold)
+                                if (audioOptions.isEmpty()) {
+                                    Text("源站没有返回独立音频流，将自动选择最佳音频。",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 } else {
                                     FormatSelectionList(
                                         options = audioOptions,
@@ -1567,95 +1700,126 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                                         onSelected = { selectedAudioFormatId = it }
                                     )
                                 }
+                                ChoiceChipRows(
+                                    options = listOf("mp3" to "MP3", "m4a" to "M4A", "opus" to "Opus", "flac" to "FLAC"),
+                                    selected = audioFormat,
+                                    onSelected = { audioFormat = it }
+                                )
+                                SettingsToggleRow(
+                                    "嵌入封面图片", "将视频封面写入音频文件",
+                                    embedThumbnail, { embedThumbnail = it }
+                                )
                             }
-                        }
 
-                        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                            Text("封装格式", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            ChoiceChipRows(
-                                options = listOf("mp4" to "MP4", "mkv" to "MKV", "webm" to "WebM"),
-                                selected = videoContainer,
-                                onSelected = { videoContainer = it }
+                            if (info.qualityNotice.isNotBlank()) {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(17.dp),
+                                    color = MaterialTheme.colorScheme.tertiaryContainer
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth().padding(13.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(info.qualityNotice, style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer)
+                                        if (info.qualityNotice.contains("Niconico 游客身份")) {
+                                            OutlinedButton(
+                                                onClick = openLogin,
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(14.dp)
+                                            ) {
+                                                Text("登录 Niconico 并重新解析")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp),
+                        color = MaterialTheme.colorScheme.surface
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .clickable { showAdvancedDownloadSettings = !showAdvancedDownloadSettings }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text("更多下载选项", fontWeight = FontWeight.SemiBold)
+                                Text("字幕、播放列表、下载速度", style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Text(
+                                if (showAdvancedDownloadSettings) "收起" else "展开",
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                            Text("音频流", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            FilterChip(
-                                selected = selectedAudioFormatId.isBlank(),
-                                onClick = { selectedAudioFormatId = "" },
-                                label = { Text("自动选择最佳") }
-                            )
-                            if (audioOptions.isEmpty()) {
-                                Text(
-                                    info.qualityNotice.ifBlank {
-                                        "没有返回独立音频流，将使用 yt-dlp 自动选择音频。"
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            } else {
-                                FormatSelectionList(
-                                    options = audioOptions,
-                                    selectedId = selectedAudioFormatId,
-                                    onSelected = { selectedAudioFormatId = it }
+                    }
+                    if (showAdvancedDownloadSettings) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(22.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(9.dp)
+                            ) {
+                                SettingsToggleRow("同时下载字幕", "下载网站提供的字幕", downloadSubtitles) {
+                                    downloadSubtitles = it
+                                }
+                                if (downloadSubtitles) {
+                                    OutlinedTextField(
+                                        value = subtitleLanguages,
+                                        onValueChange = { subtitleLanguages = it },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(16.dp),
+                                        label = { Text("字幕语言") },
+                                        placeholder = { Text("all 或 zh-Hans,zh-CN,en") }
+                                    )
+                                }
+                                SettingsToggleRow("下载整个播放列表", "默认只下载当前视频", downloadPlaylist) {
+                                    downloadPlaylist = it
+                                }
+                                SettingsToggleRow("跳过已下载的视频", "在本机保存下载归档", skipExisting) {
+                                    skipExisting = it
+                                }
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                                Text("下载速度", fontWeight = FontWeight.SemiBold)
+                                ChoiceChipRows(
+                                    options = listOf("1" to "省流量", "4" to "均衡", "8" to "高速"),
+                                    selected = concurrentFragments.toString(),
+                                    onSelected = { concurrentFragments = it.toIntOrNull() ?: 4 }
                                 )
                             }
                         }
-                        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                            Text("音频编码", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            ChoiceChipRows(
-                                options = listOf("mp3" to "MP3", "m4a" to "M4A", "opus" to "Opus", "flac" to "FLAC"),
-                                selected = audioFormat,
-                                onSelected = { audioFormat = it }
-                            )
-                            SettingsToggleRow(
-                                "嵌入封面图片", "将视频封面写入音频文件",
-                                embedThumbnail, { embedThumbnail = it }
-                            )
-                        }
                     }
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("更多选项", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        SettingsToggleRow("同时下载字幕", "下载网站提供的字幕", downloadSubtitles) {
-                            downloadSubtitles = it
-                        }
-                        if (downloadSubtitles) {
-                            OutlinedTextField(
-                                value = subtitleLanguages,
-                                onValueChange = { subtitleLanguages = it },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                shape = RoundedCornerShape(16.dp),
-                                label = { Text("字幕语言") },
-                                placeholder = { Text("all 或 zh-Hans,zh-CN,en") }
-                            )
-                        }
-                        SettingsToggleRow("下载整个播放列表", "默认只下载当前视频", downloadPlaylist) {
-                            downloadPlaylist = it
-                        }
-                        SettingsToggleRow("跳过已下载的视频", "在本机保存下载归档", skipExisting) {
-                            skipExisting = it
-                        }
-                    }
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("下载速度", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        ChoiceChipRows(
-                            options = listOf("1" to "省流量", "4" to "均衡", "8" to "高速"),
-                            selected = concurrentFragments.toString(),
-                            onSelected = { concurrentFragments = it.toIntOrNull() ?: 4 }
-                        )
-                    }
+
                     Button(
                         onClick = startDownload,
                         enabled = !engineUpdating && !EngineUpdateManager.isUpdating() && !previewLoading,
-                        modifier = Modifier.fillMaxWidth().height(54.dp),
-                        shape = RoundedCornerShape(18.dp)
+                        modifier = Modifier.fillMaxWidth().height(60.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
                     ) {
                         Icon(Icons.Default.Download, null)
-                        Spacer(Modifier.width(9.dp))
-                        Text(if (download.running) "加入下载队列" else "开始下载",
-                            fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            if (download.running) "加入下载队列" else if (audioOnly) "下载音频" else "下载此画质",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
@@ -1682,6 +1846,57 @@ private fun bestAudioFormat(
         compareBy<VideoInfoService.FormatOption> { it.bitrate }
             .thenBy { it.filesize }
     )
+}
+
+@Composable
+private fun QualityOptionCard(
+    height: Int,
+    detail: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            if (selected) 2.dp else 1.dp,
+            if (selected) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.outlineVariant
+        )
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 15.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    if (height >= 4320) "${height}p · 8K"
+                    else if (height >= 2160) "${height}p · 4K"
+                    else "${height}p",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    detail.ifBlank { "源站格式" },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            RadioButton(selected = selected, onClick = onClick)
+        }
+    }
+}
+
+private fun formatBytesForUi(bytes: Long): String {
+    if (bytes <= 0L) return ""
+    val mb = bytes / (1024.0 * 1024.0)
+    return if (mb >= 1024.0) String.format(Locale.getDefault(), "%.1f GB", mb / 1024.0)
+    else String.format(Locale.getDefault(), "%.0f MB", mb)
 }
 
 @Composable
