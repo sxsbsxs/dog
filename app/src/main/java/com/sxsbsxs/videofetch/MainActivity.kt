@@ -21,6 +21,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -628,6 +629,16 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
             .putBoolean("auto_update_engine", autoUpdateEngine)
             .putBoolean("auto_update_wifi_only", autoUpdateWifiOnly)
             .apply()
+    }
+
+    LaunchedEffect(download.running, download.message, selectedTab) {
+        if (selectedTab == 7 && !download.running) {
+            historyJson = DownloadHistoryStore.read(context)
+        }
+    }
+
+    BackHandler(enabled = selectedTab == 6) {
+        selectedTab = playerReturnTab
     }
 
     LaunchedEffect(autoUpdateEngine, autoUpdateWifiOnly, download.running, previewLoading) {
