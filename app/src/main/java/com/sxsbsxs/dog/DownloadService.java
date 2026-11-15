@@ -52,6 +52,10 @@ public class DownloadService extends Service {
     private static final int NOTIFICATION_ID = 7421;
     private static final int CANCEL_REQUEST_ID = 7422;
     private static final String PROCESS_ID = "dog-download-process";
+    private static final java.util.regex.Pattern DOWNLOAD_PROGRESS_PATTERN =
+            java.util.regex.Pattern.compile("(?i)\\[download\\]\\s+(\\d+(?:\\.\\d+)?)%");
+    private static final java.util.regex.Pattern ARIA2_PROGRESS_PATTERN =
+            java.util.regex.Pattern.compile("\\[#\\w{6}.*?\\((\\d+(?:\\.\\d+)?)%\\)");
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -228,16 +232,18 @@ public class DownloadService extends Service {
                     }
                 }
 
-                // The library reports -1 until its parser recognizes a progress line.
-                // Never turn that sentinel into a fake 0% update.
-                if (progress == null || !Float.isFinite(progress) || progress < 0f) {
+                // StreamProcessExtractor requires both a percent and ETA in a
+                // strict MM:SS form. yt-dlp may emit an unknown ETA; parse the
+                // percent independently so the UI never stays stuck at 0%.
+                int parsedProgress = resolveProgress(progress, outputLine);
+                if (parsedProgress < 0) {
                     if (lastProgress[0] < 0) {
                         DownloadState.INSTANCE.updateMessage("已连接下载源，正在获取实时进度…");
                     }
                     return Unit.INSTANCE;
                 }
 
-                int percent = Math.max(lastProgress[0], Math.min(100, Math.round(progress)));
+                int percent = Math.max(lastProgress[0], Math.min(100, parsedProgress));
                 lastProgress[0] = percent;
                 String speed = extractSpeed(outputLine);
                 String message = "正在下载 · " + percent + "%" +
@@ -262,9 +268,7 @@ public class DownloadService extends Service {
 
             List<File> completedFiles = findCompletedFiles(outputDirectory, before);
             if (completedFiles.isEmpty()) {
-                boolean archiveEnabled = getSharedPreferences(
-                        "dog_settings", Context.MODE_PRIVATE
-                ).getBoolean("skip_existing", false);
+                boolean archiveEnabled = task.skipExisting;
                 if (archiveEnabled) {
                     String message = "没有新文件：视频可能都已下载过，已按下载归档跳过";
                     DownloadHistoryStore.record(
@@ -387,6 +391,34 @@ public class DownloadService extends Service {
                 stopSelfResult(completedStartId);
             }
         }
+    }
+
+    private int resolveProgress(Float nativeProgress, String outputLine) {
+        if (nativeProgress != null && Float.isFinite(nativeProgress) && nativeProgress >= 0f) {
+            return Math.min(100, Math.round(nativeProgress));
+        }
+        if (outputLine == null || outputLine.isEmpty()) return -1;
+
+        java.util.regex.Matcher download = DOWNLOAD_PROGRESS_PATTERN.matcher(outputLine);
+        if (download.find()) {
+            try {
+                return Math.min(100, Math.max(0,
+                        (int) Math.round(Double.parseDouble(download.group(1)))));
+            } catch (NumberFormatException ignored) {
+                return -1;
+            }
+        }
+
+        java.util.regex.Matcher aria2 = ARIA2_PROGRESS_PATTERN.matcher(outputLine);
+        if (aria2.find()) {
+            try {
+                return Math.min(100, Math.max(0,
+                        (int) Math.round(Double.parseDouble(aria2.group(1)))));
+            } catch (NumberFormatException ignored) {
+                return -1;
+            }
+        }
+        return -1;
     }
 
     private String extractSpeed(String outputLine) {
