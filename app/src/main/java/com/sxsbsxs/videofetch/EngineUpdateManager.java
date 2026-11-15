@@ -40,7 +40,7 @@ public final class EngineUpdateManager {
         if (!preferences.getBoolean("auto_update_engine", false)) return false;
         if (UPDATING.get() || DownloadState.INSTANCE.isRunning() || VideoInfoService.isInspecting()) return false;
 
-        long lastCheck = preferences.getLong("last_engine_update_check", 0L);
+        long lastCheck = preferences.getLong("last_engine_nightly_update_check", 0L);
         long oneWeek = 7L * 24L * 60L * 60L * 1000L;
         if (System.currentTimeMillis() - lastCheck < oneWeek) return false;
 
@@ -58,8 +58,8 @@ public final class EngineUpdateManager {
 
         update(app, message -> {
             if (message != null &&
-                    (message.startsWith("yt-dlp 已更新") || message.startsWith("yt-dlp 已是最新版本"))) {
-                preferences.edit().putLong("last_engine_update_check", System.currentTimeMillis()).apply();
+                    (message.startsWith("yt-dlp nightly 已更新") || message.startsWith("yt-dlp nightly 已是最新版本"))) {
+                preferences.edit().putLong("last_engine_nightly_update_check", System.currentTimeMillis()).apply();
             }
             if (callback != null) callback.onComplete(message);
         });
@@ -82,13 +82,13 @@ public final class EngineUpdateManager {
             try {
                 YtDlpEngine.initialize(app);
                 YoutubeDL.UpdateStatus status = YoutubeDL.getInstance().updateYoutubeDL(
-                        app, YoutubeDL.UpdateChannel._STABLE);
+                        app, YoutubeDL.UpdateChannel._NIGHTLY);
                 String version = YoutubeDL.getInstance().versionName(app);
                 String suffix = version == null || version.trim().isEmpty() ? "" : "：" + version;
                 if (status == YoutubeDL.UpdateStatus.DONE) {
-                    result = "yt-dlp 已更新" + suffix;
+                    result = "yt-dlp nightly 已更新" + suffix;
                 } else if (status == YoutubeDL.UpdateStatus.ALREADY_UP_TO_DATE) {
-                    result = "yt-dlp 已是最新版本" + suffix;
+                    result = "yt-dlp nightly 已是最新版本" + suffix;
                 } else {
                     result = "解析引擎更新未完成：" + status;
                 }
