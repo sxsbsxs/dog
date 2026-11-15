@@ -34,34 +34,40 @@ public final class EngineUpdateManager {
      * Weekly background check inspired by Seal's updater. Runs only on a
      * validated network and never while a download or metadata extraction is active.
      */
-    public static void updateIfDue(Context context, boolean wifiOnly) {
+    public static boolean updateIfDue(Context context, boolean wifiOnly, Callback callback) {
         Context app = context.getApplicationContext();
         SharedPreferences preferences = app.getSharedPreferences("dog_settings", Context.MODE_PRIVATE);
-        if (!preferences.getBoolean("auto_update_engine", true)) return;
-        if (UPDATING.get() || DownloadState.INSTANCE.isRunning() || VideoInfoService.isInspecting()) return;
+        if (!preferences.getBoolean("auto_update_engine", true)) return false;
+        if (UPDATING.get() || DownloadState.INSTANCE.isRunning() || VideoInfoService.isInspecting()) return false;
 
         long lastCheck = preferences.getLong("last_engine_update_check", 0L);
         long oneWeek = 7L * 24L * 60L * 60L * 1000L;
-        if (System.currentTimeMillis() - lastCheck < oneWeek) return;
+        if (System.currentTimeMillis() - lastCheck < oneWeek) return false;
 
         ConnectivityManager manager =
                 (ConnectivityManager) app.getSystemService(Context.CONNECTIVITY_SERVICE);
-        if (manager == null) return;
+        if (manager == null) return false;
         Network network = manager.getActiveNetwork();
         NetworkCapabilities capabilities = network == null ? null : manager.getNetworkCapabilities(network);
         if (capabilities == null ||
                 !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ||
                 !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
-            return;
+            return false;
         }
-        if (wifiOnly && !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return;
+        if (wifiOnly && !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return false;
 
         update(app, message -> {
             if (message != null &&
                     (message.startsWith("yt-dlp 已更新") || message.startsWith("yt-dlp 已是最新版本"))) {
                 preferences.edit().putLong("last_engine_update_check", System.currentTimeMillis()).apply();
             }
+            if (callback != null) callback.onComplete(message);
         });
+        return true;
+    }
+
+    public static boolean updateIfDue(Context context, boolean wifiOnly) {
+        return updateIfDue(context, wifiOnly, null);
     }
 
     public static void update(Context context, Callback callback) {
