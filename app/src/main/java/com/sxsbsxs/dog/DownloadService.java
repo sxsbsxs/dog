@@ -572,7 +572,7 @@ public class DownloadService extends Service {
 
     private void cancelDownload() {
         synchronized (queueLock) {
-            pendingUrls.clear();
+            pendingTasks.clear();
             activeGeneration++;
             try {
                 YoutubeDL.getInstance().destroyProcessById(PROCESS_ID);
@@ -654,7 +654,7 @@ public class DownloadService extends Service {
         context.startService(intent);
     }
 
-    /** Clears only pending URLs. The currently running download is left untouched. */
+    /** Clears only pending tasks. The currently running download is left untouched. */
     public static void clearQueue(Context context) {
         Intent intent = new Intent(context, DownloadService.class).setAction(ACTION_CLEAR_QUEUE);
         context.startService(intent);
