@@ -41,6 +41,8 @@ import kotlin.jvm.functions.Function3;
  */
 public class DownloadService extends Service {
     public static final String EXTRA_URL = "extra_url";
+    public static final String EXTRA_FORMAT_SELECTOR = "extra_format_selector";
+    public static final String EXTRA_AUDIO_ONLY = "extra_audio_only";
     public static final String ACTION_CANCEL = "com.sxsbsxs.dog.CANCEL_DOWNLOAD";
     public static final String ACTION_CLEAR_QUEUE = "com.sxsbsxs.dog.CLEAR_DOWNLOAD_QUEUE";
 
@@ -53,7 +55,19 @@ public class DownloadService extends Service {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final Object queueLock = new Object();
-    private final Queue<String> pendingUrls = new ArrayDeque<>();
+    private static final class DownloadTask {
+        final String url;
+        final String formatSelector;
+        final boolean audioOnly;
+
+        DownloadTask(String url, String formatSelector, boolean audioOnly) {
+            this.url = url;
+            this.formatSelector = formatSelector == null ? "" : formatSelector;
+            this.audioOnly = audioOnly;
+        }
+    }
+
+    private final Queue<DownloadTask> pendingTasks = new ArrayDeque<>();
     private volatile Future<?> downloadFuture;
     private volatile int latestStartId;
     private volatile int activeGeneration;
@@ -75,7 +89,7 @@ public class DownloadService extends Service {
         if (intent != null && ACTION_CLEAR_QUEUE.equals(intent.getAction())) {
             synchronized (queueLock) {
                 latestStartId = startId;
-                pendingUrls.clear();
+                pendingTasks.clear();
                 if (running.get()) {
                     DownloadState.INSTANCE.queueCleared();
                     NotificationManager manager = getSystemService(NotificationManager.class);
@@ -95,12 +109,18 @@ public class DownloadService extends Service {
             if (!running.get()) stopSelfResult(startId);
             return START_NOT_STICKY;
         }
+        String formatSelector = intent.getStringExtra(EXTRA_FORMAT_SELECTOR);
+        boolean audioOnly = intent.getBooleanExtra(
+                EXTRA_AUDIO_ONLY,
+                getSharedPreferences("dog_settings", Context.MODE_PRIVATE).getBoolean("audio_only", false)
+        );
+        DownloadTask task = new DownloadTask(url, formatSelector, audioOnly);
 
         synchronized (queueLock) {
             latestStartId = startId;
             if (running.get()) {
-                pendingUrls.offer(url);
-                int count = pendingUrls.size();
+                pendingTasks.offer(task);
+                int count = pendingTasks.size();
                 DownloadState.INSTANCE.queued(count);
                 NotificationManager manager = getSystemService(NotificationManager.class);
                 if (manager != null) {
@@ -114,8 +134,8 @@ public class DownloadService extends Service {
             int generation = ++activeGeneration;
             createNotificationChannel();
             startForeground(NOTIFICATION_ID, buildNotification("正在准备下载", 0, true));
-            DownloadState.INSTANCE.started(pendingUrls.size());
-            downloadFuture = executor.submit(() -> runDownload(url, generation));
+            DownloadState.INSTANCE.started(pendingTasks.size());
+            downloadFuture = executor.submit(() -> runDownload(task, generation));
         }
         return START_NOT_STICKY;
     }
@@ -126,7 +146,8 @@ public class DownloadService extends Service {
                  value.regionMatches(true, 0, "http://", 0, 7));
     }
 
-    private void runDownload(String url, int generation) {
+    private void runDownload(DownloadTask task, int generation) {
+        final String url = task.url;
         File temporaryCookieFile = null;
         final StringBuilder processOutputTail = new StringBuilder();
         try {
@@ -134,7 +155,8 @@ public class DownloadService extends Service {
             Map<String, String> before = snapshotFiles(outputDirectory);
             YtDlpEngine.initialize(getApplicationContext());
 
-            YoutubeDLRequest request = buildRequest(url, outputDirectory);
+            YoutubeDLRequest request = buildRequest(
+                    url, outputDirectory, task.formatSelector, task.audioOnly);
 
             // The in-app login WebView exports a complete Netscape cookie jar.
             // Materialize it only for this yt-dlp process; the encrypted source stays private.
@@ -306,16 +328,16 @@ public class DownloadService extends Service {
             synchronized (queueLock) {
                 // Ignore completion callbacks from a task invalidated by Cancel.
                 if (generation == activeGeneration) {
-                    String nextUrl = pendingUrls.poll();
-                    if (nextUrl != null) {
-                        int remaining = pendingUrls.size();
+                    DownloadTask nextTask = pendingTasks.poll();
+                    if (nextTask != null) {
+                        int remaining = pendingTasks.size();
                         DownloadState.INSTANCE.started(remaining);
                         NotificationManager manager = getSystemService(NotificationManager.class);
                         if (manager != null) {
                             manager.notify(NOTIFICATION_ID,
                                     buildNotification("正在准备下一个下载任务", 0, true));
                         }
-                        downloadFuture = executor.submit(() -> runDownload(nextUrl, generation));
+                        downloadFuture = executor.submit(() -> runDownload(nextTask, generation));
                     } else {
                         running.set(false);
                         stopForeground(STOP_FOREGROUND_DETACH);
@@ -383,7 +405,8 @@ public class DownloadService extends Service {
         return "下载失败：" + friendly;
     }
 
-    private YoutubeDLRequest buildRequest(String url, File directory) {
+    private YoutubeDLRequest buildRequest(
+            String url, File directory, String selectedFormat, boolean audioOnly) {
         YoutubeDLRequest request = new YoutubeDLRequest(url);
         request.addOption("-o", new File(directory, "%(title).200B.%(ext)s").getAbsolutePath());
         request.addOption("--newline");
@@ -402,7 +425,6 @@ public class DownloadService extends Service {
 
         android.content.SharedPreferences preferences =
                 getSharedPreferences("dog_settings", Context.MODE_PRIVATE);
-        boolean audioOnly = preferences.getBoolean("audio_only", false);
         boolean downloadSubtitles = preferences.getBoolean("download_subtitles", false);
         boolean downloadPlaylist = preferences.getBoolean("download_playlist", false);
         int concurrentFragments = Math.max(1, Math.min(8, preferences.getInt("concurrent_fragments", 4)));
@@ -413,7 +435,15 @@ public class DownloadService extends Service {
         request.addOption(downloadPlaylist ? "--yes-playlist" : "--no-playlist");
         if (downloadPlaylist) request.addOption("--no-abort-on-error");
         if (audioOnly) {
-            request.addOption("-f", "ba/b");
+            String audioSelector = selectedFormat == null ? "" : selectedFormat.trim();
+            if (!audioSelector.isEmpty()) {
+                if (!isSafeFormatSelector(audioSelector) || audioSelector.contains("+")) {
+                    throw new IllegalArgumentException("无效的音频格式 ID");
+                }
+                request.addOption("-f", audioSelector);
+            } else {
+                request.addOption("-f", "ba/b");
+            }
             request.addOption("-x");
             String audioFormat = preferences.getString("audio_format", "mp3");
             if (!"mp3".equals(audioFormat) && !"m4a".equals(audioFormat) &&
@@ -426,10 +456,17 @@ public class DownloadService extends Service {
                 request.addOption("--embed-thumbnail");
             }
         } else {
-            int maxHeight = preferences.getInt("max_height", 0);
-            String format = maxHeight > 0
-                    ? "bv*[height=" + maxHeight + "]+ba/b[height=" + maxHeight + "]"
-                    : "bv*+ba/b";
+            String format = selectedFormat == null ? "" : selectedFormat.trim();
+            if (!format.isEmpty()) {
+                if (!isSafeFormatSelector(format)) {
+                    throw new IllegalArgumentException("无效的视频/音频格式 ID");
+                }
+            } else {
+                int maxHeight = preferences.getInt("max_height", 0);
+                format = maxHeight > 0
+                        ? "bv*[height=" + maxHeight + "]+ba/b[height=" + maxHeight + "]"
+                        : "bv*+ba/b";
+            }
             request.addOption("-f", format);
             String videoContainer = preferences.getString("video_container", "mp4");
             if (!"mp4".equals(videoContainer) && !"mkv".equals(videoContainer) &&
@@ -453,6 +490,12 @@ public class DownloadService extends Service {
         // aria2c is the upstream native Android downloader, initialized by YtDlpEngine.
         request.addOption("--downloader", "libaria2c.so");
         return request;
+    }
+
+    private boolean isSafeFormatSelector(String selector) {
+        return selector != null && selector.matches(
+                "[A-Za-z0-9._-]{1,80}(?:\\+[A-Za-z0-9._-]{1,80})?"
+        );
     }
 
     private File getDownloadDirectory() throws IOException {
@@ -593,7 +636,16 @@ public class DownloadService extends Service {
     }
 
     public static void start(Context context, String url) {
-        Intent intent = new Intent(context, DownloadService.class).putExtra(EXTRA_URL, url);
+        boolean audioOnly = context.getSharedPreferences(
+                "dog_settings", Context.MODE_PRIVATE).getBoolean("audio_only", false);
+        start(context, url, "", audioOnly);
+    }
+
+    public static void start(Context context, String url, String formatSelector, boolean audioOnly) {
+        Intent intent = new Intent(context, DownloadService.class)
+                .putExtra(EXTRA_URL, url)
+                .putExtra(EXTRA_FORMAT_SELECTOR, formatSelector == null ? "" : formatSelector)
+                .putExtra(EXTRA_AUDIO_ONLY, audioOnly);
         ContextCompat.startForegroundService(context, intent);
     }
 
