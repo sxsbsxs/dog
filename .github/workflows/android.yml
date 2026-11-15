@@ -30,8 +30,25 @@ jobs:
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug
       - name: Verify Python and native runtime packages
-        run: python tools/check_native_runtime.py app/build/outputs/apk/debug/app-debug.apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          for apk in app/build/outputs/apk/debug/*.apk; do
+            python tools/check_native_runtime.py "$apk"
+          done
       - uses: actions/upload-artifact@v4
         with:
-          name: dog-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: dog-debug-arm64-v8a
+          path: app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dog-debug-armeabi-v7a
+          path: app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dog-debug-x86
+          path: app/build/outputs/apk/debug/app-x86-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dog-debug-x86_64
+          path: app/build/outputs/apk/debug/app-x86_64-debug.apk
