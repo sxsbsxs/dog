@@ -185,9 +185,10 @@ public final class VideoInfoService {
                 // Always cross the main-thread boundary from this worker executor.
                 MAIN_HANDLER.post(() -> callback.onSuccess(preview));
             } catch (Throwable failure) {
-                String message = YouTubeRequestFallback.shouldRetry(
-                        url, failure, failure.toString())
-                        ? YouTubeRequestFallback.userMessage(failure.toString())
+                String failureText = failure.toString();
+                String message = YouTubeRequestFallback.isJavaScriptRuntimeFailure(failureText) ||
+                        YouTubeRequestFallback.shouldRetry(url, failure, failureText)
+                        ? YouTubeRequestFallback.userMessage(failureText)
                         : failure.getMessage();
                 if (message == null || message.trim().isEmpty()) message = failure.getClass().getSimpleName();
                 if (message.length() > 360) message = message.substring(0, 360) + "…";
