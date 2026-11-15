@@ -43,6 +43,7 @@ public class DownloadService extends Service {
     public static final String EXTRA_URL = "extra_url";
     public static final String EXTRA_FORMAT_SELECTOR = "extra_format_selector";
     public static final String EXTRA_AUDIO_ONLY = "extra_audio_only";
+    public static final String EXTRA_FORMAT_LABEL = "extra_format_label";
     public static final String ACTION_CANCEL = "com.sxsbsxs.dog.CANCEL_DOWNLOAD";
     public static final String ACTION_CLEAR_QUEUE = "com.sxsbsxs.dog.CLEAR_DOWNLOAD_QUEUE";
 
@@ -59,11 +60,13 @@ public class DownloadService extends Service {
         final String url;
         final String formatSelector;
         final boolean audioOnly;
+        final String formatLabel;
 
-        DownloadTask(String url, String formatSelector, boolean audioOnly) {
+        DownloadTask(String url, String formatSelector, boolean audioOnly, String formatLabel) {
             this.url = url;
             this.formatSelector = formatSelector == null ? "" : formatSelector;
             this.audioOnly = audioOnly;
+            this.formatLabel = formatLabel == null ? "" : formatLabel;
         }
     }
 
@@ -114,7 +117,8 @@ public class DownloadService extends Service {
                 EXTRA_AUDIO_ONLY,
                 getSharedPreferences("dog_settings", Context.MODE_PRIVATE).getBoolean("audio_only", false)
         );
-        DownloadTask task = new DownloadTask(url, formatSelector, audioOnly);
+        String formatLabel = intent.getStringExtra(EXTRA_FORMAT_LABEL);
+        DownloadTask task = new DownloadTask(url, formatSelector, audioOnly, formatLabel);
 
         synchronized (queueLock) {
             latestStartId = startId;
@@ -133,8 +137,10 @@ public class DownloadService extends Service {
             running.set(true);
             int generation = ++activeGeneration;
             createNotificationChannel();
-            startForeground(NOTIFICATION_ID, buildNotification("正在准备下载", 0, true));
-            DownloadState.INSTANCE.started(pendingTasks.size());
+            String preparing = task.formatLabel.isEmpty()
+                    ? "正在准备下载" : "正在准备下载 · " + task.formatLabel;
+            startForeground(NOTIFICATION_ID, buildNotification(preparing, 0, true));
+            DownloadState.INSTANCE.started(pendingTasks.size(), task.formatLabel);
             downloadFuture = executor.submit(() -> runDownload(task, generation));
         }
         return START_NOT_STICKY;
@@ -331,7 +337,7 @@ public class DownloadService extends Service {
                     DownloadTask nextTask = pendingTasks.poll();
                     if (nextTask != null) {
                         int remaining = pendingTasks.size();
-                        DownloadState.INSTANCE.started(remaining);
+                        DownloadState.INSTANCE.started(remaining, nextTask.formatLabel);
                         NotificationManager manager = getSystemService(NotificationManager.class);
                         if (manager != null) {
                             manager.notify(NOTIFICATION_ID,
@@ -642,10 +648,16 @@ public class DownloadService extends Service {
     }
 
     public static void start(Context context, String url, String formatSelector, boolean audioOnly) {
+        start(context, url, formatSelector, audioOnly, "");
+    }
+
+    public static void start(
+            Context context, String url, String formatSelector, boolean audioOnly, String formatLabel) {
         Intent intent = new Intent(context, DownloadService.class)
                 .putExtra(EXTRA_URL, url)
                 .putExtra(EXTRA_FORMAT_SELECTOR, formatSelector == null ? "" : formatSelector)
-                .putExtra(EXTRA_AUDIO_ONLY, audioOnly);
+                .putExtra(EXTRA_AUDIO_ONLY, audioOnly)
+                .putExtra(EXTRA_FORMAT_LABEL, formatLabel == null ? "" : formatLabel);
         ContextCompat.startForegroundService(context, intent);
     }
 
