@@ -423,6 +423,15 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     var url by rememberSaveable { mutableStateOf(initialUrl.orEmpty()) }
     var hasCookieJar by remember { mutableStateOf(SecureCookieStore.hasCookieJar(context)) }
     var authorizedSites by remember { mutableStateOf(SecureCookieStore.listAuthorizedSites(context)) }
+    // Cookie plaintext stays in transient UI state only while the authorization page is visible.
+    var cookieJarPreview by remember { mutableStateOf("") }
+    var isCookieJarVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(selectedTab) {
+        if (selectedTab != 2) {
+            cookieJarPreview = ""
+            isCookieJarVisible = false
+        }
+    }
     var historyJson by remember { mutableStateOf(DownloadHistoryStore.read(context)) }
     var playingHistoryItem by remember { mutableStateOf<DownloadHistoryItem?>(null) }
     var playerReturnTab by rememberSaveable { mutableStateOf(1) }
@@ -1975,7 +1984,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                     }
                                 }
                                 Text(
-                                    if (hasCookieJar) "本机安全保存 " + authorizedSites.size + " 个网站授权，不需要手动复制 Cookie。"
+                                    if (hasCookieJar) "已在本机加密保存 " + authorizedSites.size + " 个网站授权。下载时自动使用，也可以按需查看或复制。"
                                     else "可按需登录视频网站账号，以获取账号允许的画质。",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1992,8 +2001,97 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                                 SecureCookieStore.removeAuthorizedSite(context, site)
                                                 authorizedSites = SecureCookieStore.listAuthorizedSites(context)
                                                 hasCookieJar = SecureCookieStore.hasCookieJar(context)
+                                                cookieJarPreview = ""
+                                                isCookieJarVisible = false
                                             }) { Text("移除") }
                                         }
+                                    }
+                                }
+                                if (hasCookieJar) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                if (isCookieJarVisible) {
+                                                    cookieJarPreview = ""
+                                                    isCookieJarVisible = false
+                                                } else {
+                                                    val stored = runCatching {
+                                                        SecureCookieStore.loadCookieJar(context)
+                                                    }.getOrDefault("")
+                                                    if (stored.isBlank()) {
+                                                        Toast.makeText(context, "没有可显示的 Cookie，请重新授权", Toast.LENGTH_SHORT).show()
+                                                    } else {
+                                                        cookieJarPreview = stored
+                                                        isCookieJarVisible = true
+                                                    }
+                                                }
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(14.dp)
+                                        ) {
+                                            Text(if (isCookieJarVisible) "隐藏 Cookie" else "显示 Cookie")
+                                        }
+                                        Button(
+                                            onClick = {
+                                                val stored = runCatching {
+                                                    SecureCookieStore.loadCookieJar(context)
+                                                }.getOrDefault("")
+                                                if (stored.isBlank()) {
+                                                    Toast.makeText(context, "没有可复制的 Cookie，请重新授权", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                                    if (clipboard == null) {
+                                                        Toast.makeText(context, "系统剪贴板不可用", Toast.LENGTH_SHORT).show()
+                                                    } else {
+                                                        val clip = android.content.ClipData.newPlainText(
+                                                            "VideoFetch Cookie（敏感）",
+                                                            stored
+                                                        )
+                                                        val sensitiveExtras = android.os.PersistableBundle().apply {
+                                                            putBoolean(
+                                                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                                                                    android.content.ClipDescription.EXTRA_IS_SENSITIVE
+                                                                else "android.content.extra.IS_SENSITIVE",
+                                                                true
+                                                            )
+                                                        }
+                                                        clip.description.extras = sensitiveExtras
+                                                        clipboard.setPrimaryClip(clip)
+                                                        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
+                                                            Toast.makeText(context, "已复制全部 Cookie。它等同账号凭证，请勿发给他人。", Toast.LENGTH_LONG).show()
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(14.dp)
+                                        ) {
+                                            Text("复制全部 Cookie")
+                                        }
+                                    }
+                                    Text(
+                                        "Cookie 等同账号登录凭证。复制后只粘贴到你信任的本机工具，不要发送给他人或公开截图。",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                    if (isCookieJarVisible && cookieJarPreview.isNotBlank()) {
+                                        OutlinedTextField(
+                                            value = cookieJarPreview,
+                                            onValueChange = {},
+                                            readOnly = true,
+                                            modifier = Modifier.fillMaxWidth().heightIn(min = 112.dp, max = 240.dp),
+                                            textStyle = MaterialTheme.typography.labelSmall,
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                        Text(
+                                            "共 " + CookieJarExporter.countCookies(cookieJarPreview) + " 条 Cookie，来自 " +
+                                                CookieJarExporter.countDomains(cookieJarPreview) + " 个域名。",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
                                 }
                                 Button(
