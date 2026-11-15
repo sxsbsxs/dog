@@ -118,8 +118,12 @@ public final class YouTubeRequestFallback {
     }
 
     public static boolean isRetryableFailure(String value) {
+        if (value == null || value.isEmpty()) return false;
+        String normalized = value.toLowerCase(Locale.ROOT);
         return isBotChallenge(value) || isPoTokenFailure(value) ||
-                isHttp403(value) || isEmbeddedConfigFailure(value);
+                isHttp403(value) || isEmbeddedConfigFailure(value) ||
+                normalized.contains("playability status: login_required") ||
+                normalized.contains("login_required");
     }
 
     public static boolean isBotChallenge(Throwable failure) {
