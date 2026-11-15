@@ -56,9 +56,12 @@ public final class CrashReporter {
     public static String readPreviousCrash(Context context) {
         File file = reportFile(context);
         if (!file.isFile()) return "";
-        try {
-            byte[] bytes = java.nio.file.Files.readAllBytes(file.toPath());
-            return new String(bytes, StandardCharsets.UTF_8);
+        try (java.io.FileInputStream input = new java.io.FileInputStream(file);
+             java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096];
+            int count;
+            while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+            return new String(output.toByteArray(), StandardCharsets.UTF_8);
         } catch (Throwable failure) {
             return "无法读取上次闪退记录：" + failure;
         }
