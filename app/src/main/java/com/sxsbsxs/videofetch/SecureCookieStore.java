@@ -146,6 +146,72 @@ public final class SecureCookieStore {
     }
 
 
+    /**
+     * Imports a Netscape cookies.txt file for YouTube. Browser exports commonly
+     * contain credentials for every site; keep only YouTube and Google SSO
+     * domains before encrypting the jar with the Android Keystore key.
+     *
+     * @return number of retained cookie rows
+     */
+    public static synchronized int importYoutubeCookieFile(
+            Context context, String contents
+    ) throws Exception {
+        if (contents == null) throw new IllegalArgumentException("Cookie 文件为空");
+        String normalized = contents.replace("\uFEFF", "")
+                .replace("\r\n", "\n")
+                .replace('\r', '\n');
+        String[] lines = normalized.split("\n", -1);
+        String header = null;
+        for (String line : lines) {
+            if (line == null || line.trim().isEmpty()) continue;
+            header = line.trim();
+            break;
+        }
+        if (!"# Netscape HTTP Cookie File".equals(header) &&
+                !"# HTTP Cookie File".equals(header)) {
+            throw new IllegalArgumentException(
+                    "文件格式不正确，请选择 Netscape 格式的 cookies.txt");
+        }
+
+        StringBuilder filtered = new StringBuilder(COOKIE_FILE_HEADER)
+                .append("\n# Imported locally by VideoFetch. Do not share this file.\n");
+        int count = 0;
+        boolean containsYoutubeCookie = false;
+        for (String line : lines) {
+            if (line == null || line.isEmpty() || line.startsWith("#") &&
+                    !line.startsWith("#HttpOnly_")) continue;
+            String[] fields = line.split("\t", -1);
+            if (fields.length < 7) continue;
+
+            String domain = fields[0];
+            if (domain.startsWith("#HttpOnly_")) {
+                domain = domain.substring("#HttpOnly_".length());
+            }
+            String normalizedDomain = domain.toLowerCase(java.util.Locale.ROOT);
+            while (normalizedDomain.startsWith(".")) {
+                normalizedDomain = normalizedDomain.substring(1);
+            }
+
+            boolean youtubeDomain = normalizedDomain.equals("youtube.com") ||
+                    normalizedDomain.endsWith(".youtube.com");
+            boolean googleDomain = normalizedDomain.equals("google.com") ||
+                    normalizedDomain.endsWith(".google.com");
+            if (!youtubeDomain && !googleDomain) continue;
+
+            filtered.append(line).append('\n');
+            count++;
+            if (youtubeDomain) containsYoutubeCookie = true;
+        }
+
+        if (count == 0 || !containsYoutubeCookie) {
+            throw new IllegalArgumentException(
+                    "文件中没有找到 YouTube Cookie。请确认导出的是已登录 YouTube 后的 cookies.txt");
+        }
+
+        saveCookieJar(context, "https://www.youtube.com/", filtered.toString());
+        return count;
+    }
+
     /** Returns only authorized site names, never cookie values. */
     public static synchronized java.util.List<String> listAuthorizedSites(Context context) {
         java.util.List<String> sites = new java.util.ArrayList<>();
