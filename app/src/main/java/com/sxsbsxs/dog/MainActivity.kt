@@ -306,6 +306,8 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
     var hasCookieJar by remember { mutableStateOf(SecureCookieStore.hasCookieJar(context)) }
     var authorizedSites by remember { mutableStateOf(SecureCookieStore.listAuthorizedSites(context)) }
     var historyJson by remember { mutableStateOf(DownloadHistoryStore.read(context)) }
+    var historySearchQuery by rememberSaveable { mutableStateOf("") }
+    var historyFilter by rememberSaveable { mutableStateOf("all") }
 
     var audioOnly by rememberSaveable { mutableStateOf(preferences.getBoolean("audio_only", false)) }
     var maxHeight by rememberSaveable { mutableStateOf(preferences.getInt("max_height", 0)) }
@@ -1051,7 +1053,22 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                 }
 
                 1 -> {
-                    val historyItems = remember(historyJson) { parseDownloadHistory(historyJson) }
+                    val allHistoryItems = remember(historyJson) { parseDownloadHistory(historyJson) }
+                    val historyItems = remember(allHistoryItems, historySearchQuery, historyFilter) {
+                        val query = historySearchQuery.trim().lowercase(Locale.getDefault())
+                        allHistoryItems.filter { item ->
+                            val matchesFilter = when (historyFilter) {
+                                "completed" -> item.statusLabel.contains("完成")
+                                "failed" -> item.statusLabel.contains("失败")
+                                "canceled" -> item.statusLabel.contains("取消")
+                                else -> true
+                            }
+                            val matchesQuery = query.isBlank() ||
+                                listOf(item.fileName, item.source, item.formatLabel, item.message)
+                                    .any { it.lowercase(Locale.getDefault()).contains(query) }
+                            matchesFilter && matchesQuery
+                        }
+                    }
                     LazyColumn(
                         modifier = Modifier.fillMaxSize().padding(padding),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 22.dp, vertical = 18.dp),
@@ -1061,25 +1078,65 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                             Row(modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                     Text("已下载文件", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                                    Text(historyItems.size.toString() + " 条本机记录", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(
+                                        "显示 " + historyItems.size + " / " + allHistoryItems.size + " 条记录",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
                                 TextButton(
                                     onClick = {
                                         DownloadHistoryStore.clear(context)
                                         historyJson = "[]"
                                     },
-                                    enabled = historyItems.isNotEmpty()
+                                    enabled = allHistoryItems.isNotEmpty()
                                 ) { Text("清空") }
                             }
+                        }
+                        item {
+                            OutlinedTextField(
+                                value = historySearchQuery,
+                                onValueChange = { historySearchQuery = it },
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                                singleLine = true,
+                                shape = RoundedCornerShape(16.dp),
+                                placeholder = { Text("搜索文件名、网站或格式") },
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                                trailingIcon = {
+                                    if (historySearchQuery.isNotEmpty()) {
+                                        IconButton(onClick = { historySearchQuery = "" }) {
+                                            Icon(Icons.Default.Close, contentDescription = "清除搜索")
+                                        }
+                                    }
+                                }
+                            )
+                            ChoiceChipRows(
+                                options = listOf(
+                                    "all" to "全部",
+                                    "completed" to "已完成",
+                                    "failed" to "失败"
+                                ),
+                                selected = historyFilter,
+                                onSelected = { historyFilter = it }
+                            )
+                            Spacer(Modifier.height(9.dp))
                         }
                         if (historyItems.isEmpty()) {
                             item {
                                 EmptyState(
                                     icon = Icons.Default.History,
-                                    title = "还没有下载记录",
-                                    description = "完成或失败的任务会保存在这里。",
-                                    action = "开始下载",
-                                    onAction = { selectedTab = 0 }
+                                    title = if (allHistoryItems.isEmpty()) "还没有下载记录" else "没有找到匹配记录",
+                                    description = if (allHistoryItems.isEmpty())
+                                        "完成或失败的任务会保存在这里。"
+                                    else "试试修改搜索内容或切换状态筛选。",
+                                    action = if (allHistoryItems.isEmpty()) "开始下载" else "清除筛选",
+                                    onAction = {
+                                        if (allHistoryItems.isEmpty()) selectedTab = 0
+                                        else {
+                                            historySearchQuery = ""
+                                            historyFilter = "all"
+                                        }
+                                    }
                                 )
                             }
                         } else {
