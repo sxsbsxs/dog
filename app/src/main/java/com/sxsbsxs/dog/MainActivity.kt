@@ -63,6 +63,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
@@ -1496,10 +1497,39 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
                         Column {
-                            VideoThumbnail(
-                                url = info.thumbnail,
+                            Box(
                                 modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
-                            )
+                            ) {
+                                VideoThumbnail(
+                                    url = info.thumbnail,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                Surface(
+                                    modifier = Modifier.align(Alignment.Center).size(62.dp),
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = Color.Black.copy(alpha = 0.68f)
+                                ) {
+                                    Icon(
+                                        Icons.Default.PlayArrow,
+                                        contentDescription = "视频预览",
+                                        modifier = Modifier.padding(12.dp),
+                                        tint = Color.White
+                                    )
+                                }
+                                Surface(
+                                    modifier = Modifier.align(Alignment.BottomEnd).padding(13.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color.Black.copy(alpha = 0.56f)
+                                ) {
+                                    Text(
+                                        "ニコニコ動画",
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                             Column(
                                 modifier = Modifier.fillMaxWidth().padding(17.dp),
                                 verticalArrangement = Arrangement.spacedBy(7.dp)
