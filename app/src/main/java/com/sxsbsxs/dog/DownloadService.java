@@ -167,7 +167,8 @@ public class DownloadService extends Service {
             String preparing = task.formatLabel.isEmpty()
                     ? "正在准备下载" : "正在准备下载 · " + task.formatLabel;
             startForeground(NOTIFICATION_ID, buildNotification(preparing, 0, true));
-            DownloadState.INSTANCE.started(pendingTasks.size(), task.formatLabel);
+            DownloadState.INSTANCE.started(
+                    pendingTasks.size(), task.formatLabel, task.url, task.formatSelector, task.audioOnly);
             downloadFuture = executor.submit(() -> runDownload(task, generation));
         }
         return START_NOT_STICKY;
@@ -363,7 +364,9 @@ public class DownloadService extends Service {
                     DownloadTask nextTask = pendingTasks.poll();
                     if (nextTask != null) {
                         int remaining = pendingTasks.size();
-                        DownloadState.INSTANCE.started(remaining, nextTask.formatLabel);
+                        DownloadState.INSTANCE.started(
+                                remaining, nextTask.formatLabel, nextTask.url,
+                                nextTask.formatSelector, nextTask.audioOnly);
                         NotificationManager manager = getSystemService(NotificationManager.class);
                         if (manager != null) {
                             manager.notify(NOTIFICATION_ID,
