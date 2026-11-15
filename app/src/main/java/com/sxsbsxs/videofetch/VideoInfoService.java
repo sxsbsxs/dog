@@ -36,6 +36,11 @@ public final class VideoInfoService {
     public interface Callback {
         void onSuccess(Preview preview);
         void onError(String message);
+
+        /** Optional safe diagnostic for preview failures. */
+        default void onError(String message, String diagnostic) {
+            onError(message);
+        }
     }
 
     public static final class Preview {
@@ -128,7 +133,8 @@ public final class VideoInfoService {
         final String targetUrl = VideoUrlNormalizer.normalize(url);
         if (targetUrl == null) {
             MAIN_HANDLER.post(() -> callback.onError(
-                    "链接格式不正确，请粘贴完整视频链接或 11 位 YouTube 视频 ID"));
+                    "链接格式不正确，请粘贴完整视频链接或 11 位 YouTube 视频 ID",
+                    "VideoFetch 预解析诊断\n错误：输入不是有效的 HTTP(S) 视频链接"));
             return;
         }
         Context app = context.getApplicationContext();
@@ -206,7 +212,8 @@ public final class VideoInfoService {
                 if (message == null || message.trim().isEmpty()) message = failure.getClass().getSimpleName();
                 if (message.length() > 360) message = message.substring(0, 360) + "…";
                 final String callbackMessage = message;
-                MAIN_HANDLER.post(() -> callback.onError(callbackMessage));
+                final String callbackDiagnostic = buildSafeDiagnostic(app, failure, fullFailureDetails);
+                MAIN_HANDLER.post(() -> callback.onError(callbackMessage, callbackDiagnostic));
             } finally {
                 if (cookieFile != null && cookieFile.exists() && !cookieFile.delete()) {
                     cookieFile.deleteOnExit();
@@ -215,6 +222,53 @@ public final class VideoInfoService {
                 executor.shutdown();
             }
         });
+    }
+
+    /**
+     * Safe preview support report. Never includes Cookie values or signed URL
+     * query parameters; it records the full fallback chain so one failed
+     * client does not hide the actual error from later attempts.
+     */
+    private static String buildSafeDiagnostic(
+            Context app, Throwable failure, String failureDetails
+    ) {
+        StringBuilder report = new StringBuilder("VideoFetch 预解析诊断\\n");
+        try {
+            String version = YoutubeDL.getInstance().versionName(app);
+            if (version == null || version.trim().isEmpty()) {
+                version = YoutubeDL.getInstance().version(app);
+            }
+            report.append("yt-dlp: ")
+                    .append(version == null || version.trim().isEmpty() ? "unknown" : version)
+                    .append('\\n');
+        } catch (Throwable ignored) {
+            report.append("yt-dlp: unknown\\n");
+        }
+
+        File quickJs = new File(app.getApplicationInfo().nativeLibraryDir, "libqjs.so");
+        report.append("QuickJS: ").append(quickJs.isFile() ? "present" : "missing").append('\\n');
+        try {
+            String jar = SecureCookieStore.loadCookieJar(app);
+            report.append("Cookie jar: ")
+                    .append(CookieJarExporter.countCookies(jar)).append(" rows / ")
+                    .append(CookieJarExporter.countDomains(jar)).append(" domains; values hidden\\n");
+        } catch (Throwable ignored) {
+            report.append("Cookie jar: unavailable\\n");
+        }
+
+        if (failureDetails != null && !failureDetails.trim().isEmpty()) {
+            report.append("\\n--- preview failure chain ---\\n").append(failureDetails);
+        } else if (failure != null) {
+            report.append("\\n--- preview failure ---\\n")
+                    .append(failure.getClass().getSimpleName());
+        }
+
+        String safe = report.toString()
+                .replaceAll("(?im)(cookie|set-cookie)\\\\s*:\\\\s*[^\\\\r\\\\n]+", "$1: [已隐藏]")
+                .replaceAll("(?i)(--cookies\\\\s+)[^\\\\s]+", "$1[已隐藏]")
+                .replaceAll("(?i)\\\\b(SID|HSID|SSID|SAPISID|APISID|LOGIN_INFO|LSID|NID|__Host-[A-Za-z0-9_-]+|__Secure-[A-Za-z0-9_-]+)\\\\s*=\\\\s*[^\\\\s;]+", "$1=[已隐藏]")
+                .replaceAll("https?://[^\\\\s<>\\\\x22]*\\\\?[^\\\\s<>\\\\x22]*", "[含查询参数的 URL 已隐藏]");
+        return safe.length() > 4800 ? safe.substring(safe.length() - 4800) : safe;
     }
 
     private static YoutubeDLRequest createInfoRequest(
