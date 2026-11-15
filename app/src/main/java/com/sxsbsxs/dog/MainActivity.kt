@@ -1557,9 +1557,12 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                                         onClick = {},
                                         label = {
                                             Text(
-                                                if (info.niconicoApiMode == "v3_guest")
-                                                    "Niconico 游客接口"
-                                                else "Niconico 标准接口"
+                                                when (info.niconicoApiMode) {
+                                                    "watchV4-dms" -> "Niconico V4 · DMS"
+                                                    "server-response-dms" -> "Niconico DMS"
+                                                    "v3_guest" -> "Niconico 游客 v3_guest"
+                                                    else -> "Niconico 标准 v3"
+                                                }
                                             )
                                         },
                                         leadingIcon = {
@@ -1773,7 +1776,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                                         Text(info.qualityNotice, style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onTertiaryContainer)
                                         if (info.niconicoApiMode == "v3_guest" ||
-                                            info.qualityNotice.contains("没有检测到 Niconico 登录 Cookie")) {
+                                            info.qualityNotice.contains("没有检测到本机 user_session Cookie")) {
                                             OutlinedButton(
                                                 onClick = openLogin,
                                                 modifier = Modifier.fillMaxWidth(),
