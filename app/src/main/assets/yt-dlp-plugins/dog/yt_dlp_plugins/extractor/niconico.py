@@ -23,7 +23,9 @@ class DogNiconicoIE(_NiconicoIE, plugin_name='dog_niconico_v3_first'):
     def _real_extract(self, url):
         # A real user_session already selects v3 in the upstream extractor.
         if super().is_logged_in:
-            return super()._real_extract(url)
+            result = super()._real_extract(url)
+            result['dog_niconico_api_mode'] = 'v3'
+            return result
 
         self._dog_try_standard_v3 = True
         try:
@@ -31,6 +33,7 @@ class DogNiconicoIE(_NiconicoIE, plugin_name='dog_niconico_v3_first'):
                 result = super()._real_extract(url)
                 self.write_debug(
                     'Dog Niconico plugin: standard v3 API succeeded without a session')
+                result['dog_niconico_api_mode'] = 'v3'
                 return result
             except (ExtractorError, HTTPError) as error:
                 # Do not fake a cookie or bypass access checks. Retry the
@@ -39,6 +42,8 @@ class DogNiconicoIE(_NiconicoIE, plugin_name='dog_niconico_v3_first'):
                 self.write_debug(
                     f'Dog Niconico plugin: standard v3 API was unavailable; '
                     f'retrying v3_guest ({error})')
-                return super()._real_extract(url)
+                result = super()._real_extract(url)
+                result['dog_niconico_api_mode'] = 'v3_guest'
+                return result
         finally:
             self._dog_try_standard_v3 = False
