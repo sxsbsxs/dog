@@ -488,7 +488,7 @@ public class DownloadService extends Service {
         return "下载失败：" + friendly;
     }
 
-    private YoutubeDLRequest buildRequest(String url, File directory, DownloadTask task) {
+    private YoutubeDLRequest buildRequest(String url, File directory, DownloadTask task) throws IOException {
         YoutubeDLRequest request = new YoutubeDLRequest(url);
         request.addOption("--plugin-dirs",
                 YtDlpEngine.getPluginDirectory(getApplicationContext()).getAbsolutePath());
