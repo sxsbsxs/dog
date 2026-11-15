@@ -377,7 +377,7 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
             .apply()
     }
 
-    LaunchedEffect(autoUpdateEngine, autoUpdateWifiOnly) {
+    LaunchedEffect(autoUpdateEngine, autoUpdateWifiOnly, download.running, previewLoading) {
         if (autoUpdateEngine) {
             delay(5_000)
             val started = EngineUpdateManager.updateIfDue(context, autoUpdateWifiOnly) { message ->
