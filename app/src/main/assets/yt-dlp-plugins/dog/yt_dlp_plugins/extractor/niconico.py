@@ -143,9 +143,12 @@ class DogNiconicoIE(_NiconicoIE, plugin_name='dog_niconico_v4_dms'):
         path = 'v3_guest' if guest else 'v3'
         endpoint = f'https://www.nicovideo.jp/api/watch/{path}/{video_id}'
         query = {
+            '_frontendId': '6',
+            '_frontendVersion': '0',
             'actionTrackId': action_track_id,
             'skips': 'harmful',
             'noSideEffect': 'false',
+            't': action_track_id.rsplit('_', 1)[-1],
         }
         response = self._download_json(
             endpoint, video_id,
