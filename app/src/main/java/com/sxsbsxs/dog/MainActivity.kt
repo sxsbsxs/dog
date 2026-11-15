@@ -255,30 +255,30 @@ private fun isHttpUrl(value: String): Boolean =
         value.startsWith("http://", ignoreCase = true)
 
 private val DogLightColors = lightColorScheme(
-    primary = Color(0xFF456477), onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFD6E8F5), onPrimaryContainer = Color(0xFF102C3B),
-    secondary = Color(0xFF52616B), onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFDCE6ED), onSecondaryContainer = Color(0xFF17232A),
-    tertiary = Color(0xFF5C654A), onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0xFFE3E9D2), onTertiaryContainer = Color(0xFF202712),
-    background = Color(0xFFF7F8FA), onBackground = Color(0xFF191C1F),
-    surface = Color(0xFFFFFBFF), onSurface = Color(0xFF191C1F),
-    surfaceVariant = Color(0xFFE8EDF1), onSurfaceVariant = Color(0xFF424A50),
-    outline = Color(0xFF727A80), outlineVariant = Color(0xFFC4CDD3),
+    primary = Color(0xFF4F7837), onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFDCEBCF), onPrimaryContainer = Color(0xFF1A3510),
+    secondary = Color(0xFF667B58), onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFE5EBDD), onSecondaryContainer = Color(0xFF263521),
+    tertiary = Color(0xFF806D3F), onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFF0E6C7), onTertiaryContainer = Color(0xFF342A0E),
+    background = Color(0xFFEAF3ED), onBackground = Color(0xFF202B22),
+    surface = Color(0xFFFFFCF4), onSurface = Color(0xFF202B22),
+    surfaceVariant = Color(0xFFE8EDE4), onSurfaceVariant = Color(0xFF626D60),
+    outline = Color(0xFF84917E), outlineVariant = Color(0xFFD4DDCE),
     error = Color(0xFFBA1A1A)
 )
 
 private val DogDarkColors = darkColorScheme(
-    primary = Color(0xFFAED0E4), onPrimary = Color(0xFF183647),
-    primaryContainer = Color(0xFF304F61), onPrimaryContainer = Color(0xFFD0E8F6),
-    secondary = Color(0xFFBFC9D0), onSecondary = Color(0xFF29343A),
-    secondaryContainer = Color(0xFF3F4A51), onSecondaryContainer = Color(0xFFDBE4EA),
-    tertiary = Color(0xFFC8D0AE), onTertiary = Color(0xFF303820),
-    tertiaryContainer = Color(0xFF465033), onTertiaryContainer = Color(0xFFE4EBCB),
-    background = Color(0xFF111417), onBackground = Color(0xFFE1E5E8),
-    surface = Color(0xFF171B1E), onSurface = Color(0xFFE1E5E8),
-    surfaceVariant = Color(0xFF40484E), onSurfaceVariant = Color(0xFFC0C9CE),
-    outline = Color(0xFF8A949A), outlineVariant = Color(0xFF40484E),
+    primary = Color(0xFFB7D69F), onPrimary = Color(0xFF223A17),
+    primaryContainer = Color(0xFF38552A), onPrimaryContainer = Color(0xFFD7EFC5),
+    secondary = Color(0xFFC1D0B6), onSecondary = Color(0xFF2D3A28),
+    secondaryContainer = Color(0xFF414E3A), onSecondaryContainer = Color(0xFFE0EBD8),
+    tertiary = Color(0xFFDEC992), onTertiary = Color(0xFF403516),
+    tertiaryContainer = Color(0xFF594B27), onTertiaryContainer = Color(0xFFF5E5B8),
+    background = Color(0xFF121A14), onBackground = Color(0xFFE3EDE2),
+    surface = Color(0xFF1B251D), onSurface = Color(0xFFE3EDE2),
+    surfaceVariant = Color(0xFF3C483D), onSurfaceVariant = Color(0xFFC0CCBF),
+    outline = Color(0xFF899989), outlineVariant = Color(0xFF3C483D),
     error = Color(0xFFFFB4AB)
 )
 
@@ -295,12 +295,9 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
         "dark" -> true
         else -> isSystemInDarkTheme()
     }
-    val colors = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && dark -> dynamicDarkColorScheme(context)
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> dynamicLightColorScheme(context)
-        dark -> DogDarkColors
-        else -> DogLightColors
-    }
+    // Use a consistent sage-and-ivory brand palette instead of Android's
+    // device wallpaper colors, so the UI remains visually coherent on every phone.
+    val colors = if (dark) DogDarkColors else DogLightColors
 
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     var url by rememberSaveable { mutableStateOf(initialUrl.orEmpty()) }
