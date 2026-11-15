@@ -37,6 +37,7 @@ public final class YouTubeRequestFallback {
     /** Enables yt-dlp's current JavaScript challenge components on YouTube requests. */
     public static void applyCommonOptions(YoutubeDLRequest request) {
         request.addOption("--remote-components", EJS_REMOTE_COMPONENT);
+        request.addOption("--verbose");
     }
 
     /** A no-PO-Token client that can still expose account-aware formats. */
@@ -46,7 +47,7 @@ public final class YouTubeRequestFallback {
 
     /** Safari's HLS formats can be a useful final route when GVS PO Tokens are unavailable. */
     public static void applyHlsFallback(YoutubeDLRequest request) {
-        applyClient(request, "web_safari");
+        request.addOption("--extractor-args", "youtube:player_client=default,web_safari");
     }
 
     public static void applyClient(YoutubeDLRequest request, String client) {
@@ -64,6 +65,15 @@ public final class YouTubeRequestFallback {
         return normalized.contains("sign in to confirm you're not a bot") ||
                 normalized.contains("confirm you're not a bot") ||
                 normalized.contains("not a bot");
+    }
+
+    public static boolean isJavaScriptRuntimeFailure(String value) {
+        if (value == null || value.isEmpty()) return false;
+        String normalized = value.toLowerCase(Locale.ROOT);
+        return normalized.contains("no supported javascript runtime") ||
+                normalized.contains("javascript runtime could not be found") ||
+                normalized.contains("no js runtime") ||
+                normalized.contains("quickjs") && normalized.contains("not found");
     }
 
     public static boolean isPoTokenFailure(String value) {
@@ -122,6 +132,9 @@ public final class YouTubeRequestFallback {
     }
 
     public static String userMessage(String diagnostics) {
+        if (isJavaScriptRuntimeFailure(diagnostics)) {
+            return "yt-dlp 没有检测到 JavaScript 运行时。VideoFetch 已打包 QuickJS；请检查诊断信息中的 QuickJS 状态，并更新 yt-dlp nightly 后重试。";
+        }
         if (isPoTokenFailure(diagnostics)) {
             return "YouTube 要求 PO Token。Cookie 和登录状态不能代替它；当前版本会尝试兼容客户端，" +
                     "但尚未配置动态 PO Token Provider，因此部分视频仍可能无法下载。";
