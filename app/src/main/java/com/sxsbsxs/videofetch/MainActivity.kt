@@ -394,7 +394,9 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     var authorizedSites by remember { mutableStateOf(SecureCookieStore.listAuthorizedSites(context)) }
     var historyJson by remember { mutableStateOf(DownloadHistoryStore.read(context)) }
     var historySearchQuery by rememberSaveable { mutableStateOf("") }
+    var historySearchVisible by rememberSaveable { mutableStateOf(false) }
     var historyFilter by rememberSaveable { mutableStateOf("all") }
+    var showQueueMenu by rememberSaveable { mutableStateOf(false) }
     val navigateFromDrawer: (Int) -> Unit = { destination ->
         if (destination == 1) historyJson = DownloadHistoryStore.read(context)
         if (destination == 2) {
@@ -767,7 +769,17 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                         if (selectedTab == 1 || selectedTab == 2 || selectedTab == 4) {
                             LargeTopAppBar(
                                 navigationIcon = navigation,
-                                title = { Text(pageTitle, fontWeight = FontWeight.Medium) }
+                                title = { Text(pageTitle, fontWeight = FontWeight.Medium) },
+                                actions = {
+                                    if (selectedTab == 1) {
+                                        IconButton(onClick = { historySearchVisible = !historySearchVisible }) {
+                                            Icon(
+                                                Icons.Default.Search,
+                                                contentDescription = if (historySearchVisible) "关闭搜索" else "搜索下载记录"
+                                            )
+                                        }
+                                    }
+                                }
                             )
                         } else {
                             TopAppBar(
@@ -869,8 +881,31 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                         contentDescription = if (isGridView) "切换列表视图" else "切换网格视图"
                                     )
                                 }
-                                IconButton(onClick = { queueFilter = "all" }) {
-                                    Icon(Icons.Default.MoreVert, contentDescription = "更多任务筛选")
+                                Box {
+                                    IconButton(onClick = { showQueueMenu = true }) {
+                                        Icon(Icons.Default.MoreVert, contentDescription = "更多任务操作")
+                                    }
+                                    DropdownMenu(
+                                        expanded = showQueueMenu,
+                                        onDismissRequest = { showQueueMenu = false }
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("清空等待队列") },
+                                            enabled = download.queuedCount > 0,
+                                            onClick = {
+                                                showQueueMenu = false
+                                                DownloadService.clearQueue(context)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("取消当前下载") },
+                                            enabled = download.running,
+                                            onClick = {
+                                                showQueueMenu = false
+                                                DownloadService.cancel(context)
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1311,22 +1346,24 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                             }
                         }
                         item {
-                            OutlinedTextField(
-                                value = historySearchQuery,
-                                onValueChange = { historySearchQuery = it },
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
-                                singleLine = true,
-                                shape = RoundedCornerShape(16.dp),
-                                placeholder = { Text("搜索文件名、网站或格式") },
-                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                                trailingIcon = {
-                                    if (historySearchQuery.isNotEmpty()) {
-                                        IconButton(onClick = { historySearchQuery = "" }) {
-                                            Icon(Icons.Default.Close, contentDescription = "清除搜索")
+                            if (historySearchVisible) {
+                                OutlinedTextField(
+                                    value = historySearchQuery,
+                                    onValueChange = { historySearchQuery = it },
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                                    singleLine = true,
+                                    shape = MaterialTheme.shapes.large,
+                                    placeholder = { Text("搜索文件名、网站或格式") },
+                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                                    trailingIcon = {
+                                        if (historySearchQuery.isNotEmpty()) {
+                                            IconButton(onClick = { historySearchQuery = "" }) {
+                                                Icon(Icons.Default.Close, contentDescription = "清除搜索")
+                                            }
                                         }
                                     }
-                                }
-                            )
+                                )
+                            }
                             ChoiceChipRows(
                                 options = listOf(
                                     "all" to "全部",
