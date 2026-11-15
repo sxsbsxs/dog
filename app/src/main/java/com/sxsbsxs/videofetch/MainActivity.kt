@@ -61,7 +61,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -733,8 +732,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
         ) {
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.surface,
-                modifier = if (selectedTab == 0) Modifier.statusBarsPadding() else Modifier,
-                topBar = {
+                    topBar = {
                     if (selectedTab != 0) {
                         val pageTitle = when (selectedTab) {
                             1 -> "下载记录"
@@ -884,6 +882,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                         ?: if (download.audioOnly) "正在下载音频" else "正在下载视频",
                                     uploader = lastDownloadPreview?.uploader ?: sourceHost(download.lastUrl),
                                     thumbnailUrl = lastDownloadPreview?.thumbnail.orEmpty(),
+                                    isGridView = isGridView,
                                     stateLabel = if (download.progressKnown) "下载中 · ${download.progress}%" else "正在连接",
                                     progress = download.progress,
                                     progressKnown = download.progressKnown,
@@ -969,6 +968,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                     title = lastDownloadPreview?.title ?: download.lastUrl,
                                     uploader = lastDownloadPreview?.uploader ?: sourceHost(download.lastUrl),
                                     thumbnailUrl = lastDownloadPreview?.thumbnail.orEmpty(),
+                                    isGridView = isGridView,
                                     stateLabel = when {
                                         failed -> "下载失败"
                                         completed -> "已完成"
@@ -1490,7 +1490,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 OutlinedButton(
-                                    onClick = { settingsReturnTab = 2; selectedTab = 4 },
+                                    onClick = { settingsReturnTab = 2; settingsSection = null; selectedTab = 4 },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(16.dp)
                                 ) {
@@ -2495,6 +2495,7 @@ private fun SealVideoTaskCard(
     title: String,
     uploader: String,
     thumbnailUrl: String,
+    isGridView: Boolean,
     stateLabel: String,
     progress: Int,
     progressKnown: Boolean,
@@ -2508,81 +2509,38 @@ private fun SealVideoTaskCard(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
         )
     ) {
-        Column {
-            Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
-                if (thumbnailUrl.isNotBlank()) {
-                    VideoThumbnail(thumbnailUrl, Modifier.fillMaxSize())
-                } else {
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Default.Download,
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
-                            )
-                        }
-                    }
-                }
-                Surface(
-                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
-                    color = Color.Black.copy(alpha = 0.68f),
-                    shape = MaterialTheme.shapes.extraSmall
-                ) {
-                    Text(
-                        stateLabel,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White
-                    )
-                }
-                Surface(
-                    modifier = Modifier.align(Alignment.Center).size(62.dp),
-                    color = Color.Black.copy(alpha = 0.52f),
-                    shape = RoundedCornerShape(50)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        if (progressKnown) {
-                            CircularProgressIndicator(
-                                progress = { progress.coerceIn(0, 100) / 100f },
-                                modifier = Modifier.size(40.dp),
-                                strokeWidth = 3.dp,
-                                color = Color.White,
-                                trackColor = Color.White.copy(alpha = 0.24f)
-                            )
-                        } else {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(34.dp),
-                                strokeWidth = 3.dp,
-                                color = Color.White
-                            )
-                        }
-                    }
-                }
-                Surface(
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(7.dp),
-                    shape = MaterialTheme.shapes.extraSmall,
-                    color = Color.Black.copy(alpha = 0.68f)
-                ) {
-                    Text(
-                        if (progressKnown) "${progress.coerceIn(0, 100)}%" else "video-dl",
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White
-                    )
-                }
+        if (isGridView) {
+            Column {
+                SealTaskPoster(
+                    thumbnailUrl = thumbnailUrl,
+                    stateLabel = stateLabel,
+                    progress = progress,
+                    progressKnown = progressKnown,
+                    modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                )
+                SealTaskDetails(
+                    title = title,
+                    uploader = uploader,
+                    progress = progress,
+                    progressKnown = progressKnown,
+                    message = message,
+                    formatLabel = formatLabel,
+                    onActions = onActions
+                )
             }
+        } else {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth().padding(8.dp),
+                verticalAlignment = Alignment.Top
             ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
-                ) {
+                SealTaskPoster(
+                    thumbnailUrl = thumbnailUrl,
+                    stateLabel = stateLabel,
+                    progress = progress,
+                    progressKnown = progressKnown,
+                    modifier = Modifier.width(112.dp).aspectRatio(16f / 9f)
+                )
+                Column(modifier = Modifier.weight(1f).padding(start = 10.dp)) {
                     Text(
                         title.ifBlank { "视频下载任务" },
                         style = MaterialTheme.typography.titleSmall,
@@ -2596,45 +2554,194 @@ private fun SealVideoTaskCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (formatLabel.isNotBlank()) {
+                        Text(
+                            formatLabel,
+                            modifier = Modifier.padding(top = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (progressKnown) {
+                        LinearProgressIndicator(
+                            progress = { progress.coerceIn(0, 100) / 100f },
+                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
+                        )
+                    } else {
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
+                        )
+                    }
+                    if (message.isNotBlank()) {
+                        Text(
+                            message,
+                            modifier = Modifier.padding(top = 4.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        content = onActions
+                    )
                 }
             }
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(7.dp)
+        }
+    }
+}
+
+@Composable
+private fun SealTaskPoster(
+    thumbnailUrl: String,
+    stateLabel: String,
+    progress: Int,
+    progressKnown: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier) {
+        if (thumbnailUrl.isNotBlank()) {
+            VideoThumbnail(thumbnailUrl, Modifier.fillMaxSize())
+        } else {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest
             ) {
-                if (formatLabel.isNotBlank()) {
-                    Text(
-                        formatLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (progressKnown) {
-                    LinearProgressIndicator(
-                        progress = { progress.coerceIn(0, 100) / 100f },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                } else {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-                if (message.isNotBlank()) {
-                    Text(
-                        message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.Download,
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
                     )
                 }
             }
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                content = onActions
+        }
+        Surface(
+            modifier = Modifier.align(Alignment.TopStart).padding(6.dp),
+            color = Color.Black.copy(alpha = 0.68f),
+            shape = MaterialTheme.shapes.extraSmall
+        ) {
+            Text(
+                stateLabel,
+                modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+                maxLines = 1
             )
         }
+        Surface(
+            modifier = Modifier.align(Alignment.Center).size(52.dp),
+            color = Color.Black.copy(alpha = 0.52f),
+            shape = RoundedCornerShape(50)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                if (progressKnown) {
+                    CircularProgressIndicator(
+                        progress = { progress.coerceIn(0, 100) / 100f },
+                        modifier = Modifier.size(36.dp),
+                        strokeWidth = 3.dp,
+                        color = Color.White,
+                        trackColor = Color.White.copy(alpha = 0.24f)
+                    )
+                } else {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(30.dp),
+                        strokeWidth = 3.dp,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+        Surface(
+            modifier = Modifier.align(Alignment.BottomEnd).padding(5.dp),
+            shape = MaterialTheme.shapes.extraSmall,
+            color = Color.Black.copy(alpha = 0.68f)
+        ) {
+            Text(
+                if (progressKnown) "${progress.coerceIn(0, 100)}%" else "video-dl",
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White
+            )
+        }
+    }
+}
+
+@Composable
+private fun SealTaskDetails(
+    title: String,
+    uploader: String,
+    progress: Int,
+    progressKnown: Boolean,
+    message: String,
+    formatLabel: String,
+    onActions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 8.dp, top = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f).padding(vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(
+                    title.ifBlank { "视频下载任务" },
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    uploader.ifBlank { "媒体来源" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            if (formatLabel.isNotBlank()) {
+                Text(
+                    formatLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (progressKnown) {
+                LinearProgressIndicator(
+                    progress = { progress.coerceIn(0, 100) / 100f },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+            if (message.isNotBlank()) {
+                Text(
+                    message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            content = onActions
+        )
     }
 }
 
