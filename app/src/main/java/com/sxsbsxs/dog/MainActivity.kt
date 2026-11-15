@@ -1558,6 +1558,8 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean, St
                                         label = {
                                             Text(
                                                 when (info.niconicoApiMode) {
+                                                    "v3-dms" -> "Niconico 标准 v3 · DMS"
+                                                    "v3_guest-dms" -> "Niconico 游客 v3_guest · DMS"
                                                     "watchV4-dms" -> "Niconico V4 · DMS"
                                                     "server-response-dms" -> "Niconico DMS"
                                                     "v3_guest" -> "Niconico 游客 v3_guest"
