@@ -46,11 +46,12 @@ public final class VideoInfoService {
         public final List<FormatOption> formats;
         public final String qualityNotice;
         public final int videoFormatCount;
+        public final String niconicoApiMode;
 
         Preview(String title, String uploader, String duration, String resolution,
                 String fileSize, String extractor, String thumbnail,
                 List<QualityOption> qualities, List<FormatOption> formats,
-                String qualityNotice, int videoFormatCount) {
+                String qualityNotice, int videoFormatCount, String niconicoApiMode) {
             this.title = title;
             this.uploader = uploader;
             this.duration = duration;
@@ -62,6 +63,7 @@ public final class VideoInfoService {
             this.formats = Collections.unmodifiableList(new ArrayList<>(formats));
             this.qualityNotice = qualityNotice;
             this.videoFormatCount = videoFormatCount;
+            this.niconicoApiMode = niconicoApiMode == null ? "" : niconicoApiMode;
         }
     }
 
@@ -171,12 +173,16 @@ public final class VideoInfoService {
                 // the extractor checks user_session on www.nicovideo.jp.
                 boolean hasNiconicoSession = hasCookieForHost(
                         cookieFile, "user_session", "www.nicovideo.jp");
+                String niconicoApiMode = niconico
+                        ? root.optString("dog_niconico_api_mode", "")
+                        : "";
                 String diagnostic = buildQualityNotice(
-                        bilibili, hasSessData, niconico, hasNiconicoSession,
+                        bilibili, hasSessData, niconico, hasNiconicoSession, niconicoApiMode,
                         qualities, videoFormatCount, extractionDiagnostics);
 
                 Preview preview = new Preview(title, uploader, duration, resolution, size,
-                        extractor, thumbnail, qualities, formats, diagnostic, videoFormatCount);
+                        extractor, thumbnail, qualities, formats, diagnostic, videoFormatCount,
+                        niconicoApiMode);
                 callback.onSuccess(preview);
             } catch (Throwable failure) {
                 String message = failure.getMessage();
@@ -348,7 +354,7 @@ public final class VideoInfoService {
 
     private static String buildQualityNotice(
             boolean bilibili, boolean hasSessData,
-            boolean niconico, boolean hasNiconicoSession,
+            boolean niconico, boolean hasNiconicoSession, String niconicoApiMode,
             List<QualityOption> qualities, int videoFormatCount, String stderr
     ) {
         // Anonymous Bilibili playback can expose HD formats too.
@@ -362,20 +368,24 @@ public final class VideoInfoService {
         }
 
         if (qualities.isEmpty()) {
-            if (niconico && !hasNiconicoSession) {
-                return "当前以 Niconico 游客身份解析，但没有收到可用的视频流。请登录 Niconico 后重新解析；能否获得更高清晰度仍取决于视频本身和账号权限。";
+            if (niconico) {
+                String route = "v3_guest".equals(niconicoApiMode) ? "游客 v3_guest 接口" :
+                        "普通 v3 接口";
+                return "Niconico " + route + "没有返回可用视频流。请检查授权状态、视频可用性和账号权限。";
             }
             return "解析器没有收到可用的视频画质列表；下载时会由源站选择默认格式。";
         }
 
         int highestHeight = qualities.get(0).height;
-        if (niconico && !hasNiconicoSession && highestHeight <= 720) {
-            return "当前以 Niconico 游客身份解析，接口本次最高只返回 " + highestHeight +
-                    "p。Niconico 的访客接口可能不提供 Premium 高画质流；登录账号后重新解析，才有机会看到 1080p。是否可用仍取决于该视频及账号权限。";
-        }
-        if (niconico && hasNiconicoSession && highestHeight <= 720) {
-            return "已检测到 Niconico 登录凭据，但该视频本次仍只返回到 " + highestHeight +
-                    "p。Dog 没有把 1080p 限制成 720p；更高规格可能未对当前账号开放，或该视频本身没有更高流。";
+        if (niconico && highestHeight <= 720) {
+            String route = "v3_guest".equals(niconicoApiMode)
+                    ? "游客接口 v3_guest"
+                    : "标准接口 v3";
+            String account = hasNiconicoSession
+                    ? "当前已检测到 Niconico 登录 Cookie"
+                    : "当前没有检测到 Niconico 登录 Cookie";
+            return "本次通过 " + route + " 获取到最高 " + highestHeight + "p（" + account +
+                    "）。Niconico 普通/未登录账号最高通常为 720p；1080p 需要 Premium，且视频本身必须提供该规格。Dog 没有把 1080p 过滤掉：如果接口返回了 1080p，这里会直接显示。";
         }
 
         if (bilibili && qualities.size() == 1 && qualities.get(0).height <= 480) {
