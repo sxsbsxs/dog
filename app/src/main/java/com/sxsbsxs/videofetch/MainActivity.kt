@@ -275,7 +275,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startDownload(url: String, formatSelector: String, audioOnly: Boolean, formatLabel: String) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+        val selectedTree = getSharedPreferences(
+            "videofetch_settings", Context.MODE_PRIVATE
+        ).getString("download_tree_uri", "")
+        val customFolder = !selectedTree.isNullOrBlank()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q && !customFolder &&
             ContextCompat.checkSelfPermission(
                 this, Manifest.permission.WRITE_EXTERNAL_STORAGE
             ) != PackageManager.PERMISSION_GRANTED
