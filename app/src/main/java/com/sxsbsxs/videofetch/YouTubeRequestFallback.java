@@ -158,16 +158,17 @@ public final class YouTubeRequestFallback {
         if (isJavaScriptRuntimeFailure(diagnostics)) {
             return "yt-dlp 没有检测到 JavaScript 运行时。VideoFetch 已打包 QuickJS；请检查诊断信息中的 QuickJS 状态，并更新 yt-dlp nightly 后重试。";
         }
+        // Prefer the final request's actual bot challenge over older
+        // suppressed failures (for example, an earlier embedded-client KeyError).
+        if (isBotChallenge(diagnostics)) {
+            return "YouTube 拒绝了当前会话或网络出口，要求通过机器人验证。应用已尝试带 Cookie 和不带 Cookie 的 Safari HLS；Cookie 存在不代表会话有效。请在 YouTube 网页确认账号可正常播放，并暂时关闭 VPN 或更换网络出口后重试。";
+        }
         if (isEmbeddedConfigFailure(diagnostics)) {
             return "YouTube 的 web_embedded 客户端配置缺少 INNERTUBE_CONTEXT，触发了 yt-dlp 提取器异常。VideoFetch 已改为隔离 Safari HLS 回退，避免再次加载该客户端。";
         }
         if (isPoTokenFailure(diagnostics)) {
             return "YouTube 要求 PO Token。Cookie 和登录状态不能代替它；当前版本会尝试兼容客户端，" +
                     "但尚未配置动态 PO Token Provider，因此部分视频仍可能无法下载。";
-        }
-        if (isBotChallenge(diagnostics)) {
-            return "YouTube 仍在拦截当前会话或网络出口。Cookie 已传递，应用已尝试 TV 与 Safari HLS 客户端；" +
-                    "若继续失败，可能需要 PO Token Provider，或当前网络出口已被限制。";
         }
         if (isHttp403(diagnostics)) {
             return "YouTube 返回 HTTP 403。可能是媒体请求缺少 PO Token、播放地址过期，或网络出口受到限制；反复登录不一定能解决。";
