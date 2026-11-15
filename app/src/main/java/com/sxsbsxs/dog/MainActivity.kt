@@ -1214,27 +1214,80 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean) ->
                             onSelected = { audioOnly = it == "audio" }
                         )
                     }
+                    val videoOptions = info.formats.filter { it.hasVideo }
+                    val audioOptions = info.formats.filter { it.hasAudio && !it.hasVideo }
+                    val selectedVideoOption = videoOptions.firstOrNull { it.formatId == selectedVideoFormatId }
+
                     if (!audioOnly) {
                         Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                            Text("可用画质", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            if (info.qualities.isEmpty()) {
-                                Text(info.qualityNotice.ifBlank {
-                                    "源站没有返回可识别的画质选项，将使用 yt-dlp 默认最佳格式。"
-                                }, style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("视频流", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "这里列出 yt-dlp 实际解析到的视频流。选中后会按真实格式 ID 下载。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            FilterChip(
+                                selected = selectedVideoFormatId.isBlank(),
+                                onClick = {
+                                    selectedVideoFormatId = ""
+                                    selectedAudioFormatId = ""
+                                    maxHeight = 0
+                                    preferences.edit().putInt("max_height", 0).apply()
+                                },
+                                label = { Text("自动选择最佳") }
+                            )
+                            if (videoOptions.isEmpty()) {
+                                Text(
+                                    info.qualityNotice.ifBlank {
+                                        "解析器没有返回可手动选择的视频流，将使用 yt-dlp 自动选择。"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             } else {
-                                ChoiceChipRows(
-                                    options = info.qualities.map { it.height.toString() to it.label },
-                                    selected = maxHeight.toString(),
-                                    onSelected = { selected ->
-                                        maxHeight = selected.toIntOrNull() ?: 0
+                                FormatSelectionList(
+                                    options = videoOptions,
+                                    selectedId = selectedVideoFormatId,
+                                    onSelected = { id ->
+                                        selectedVideoFormatId = id
+                                        val chosen = videoOptions.firstOrNull { it.formatId == id }
+                                        maxHeight = chosen?.height ?: 0
+                                        if (chosen?.hasAudio == true) selectedAudioFormatId = ""
+                                        else if (selectedAudioFormatId.isBlank()) {
+                                            selectedAudioFormatId = audioOptions.firstOrNull()?.formatId.orEmpty()
+                                        }
                                         preferences.edit().putInt("max_height", maxHeight).apply()
                                     }
                                 )
                             }
                         }
+
+                        if (selectedVideoOption != null && !selectedVideoOption.hasAudio) {
+                            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                Text("音频流", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "视频与音频会在下载后自动合并。",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (audioOptions.isEmpty()) {
+                                    Text(
+                                        "没有单独的音频流列表，下载时将交给 yt-dlp 选择最佳音频。",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                } else {
+                                    FormatSelectionList(
+                                        options = audioOptions,
+                                        selectedId = selectedAudioFormatId,
+                                        onSelected = { selectedAudioFormatId = it }
+                                    )
+                                }
+                            }
+                        }
+
                         Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                            Text("文件格式", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text("封装格式", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                             ChoiceChipRows(
                                 options = listOf("mp4" to "MP4", "mkv" to "MKV", "webm" to "WebM"),
                                 selected = videoContainer,
@@ -1243,14 +1296,39 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean) ->
                         }
                     } else {
                         Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                            Text("音频格式", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text("音频流", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            FilterChip(
+                                selected = selectedAudioFormatId.isBlank(),
+                                onClick = { selectedAudioFormatId = "" },
+                                label = { Text("自动选择最佳") }
+                            )
+                            if (audioOptions.isEmpty()) {
+                                Text(
+                                    info.qualityNotice.ifBlank {
+                                        "没有返回独立音频流，将使用 yt-dlp 自动选择音频。"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                FormatSelectionList(
+                                    options = audioOptions,
+                                    selectedId = selectedAudioFormatId,
+                                    onSelected = { selectedAudioFormatId = it }
+                                )
+                            }
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                            Text("音频编码", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                             ChoiceChipRows(
                                 options = listOf("mp3" to "MP3", "m4a" to "M4A", "opus" to "Opus", "flac" to "FLAC"),
                                 selected = audioFormat,
                                 onSelected = { audioFormat = it }
                             )
-                            SettingsToggleRow("嵌入封面图片", "将视频封面写入音频文件",
-                                embedThumbnail, { embedThumbnail = it })
+                            SettingsToggleRow(
+                                "嵌入封面图片", "将视频封面写入音频文件",
+                                embedThumbnail, { embedThumbnail = it }
+                            )
                         }
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1294,6 +1372,81 @@ private fun DogApp(initialUrl: String?, onDownload: (String, String, Boolean) ->
                         Spacer(Modifier.width(9.dp))
                         Text(if (download.running) "加入下载队列" else "开始下载",
                             fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun bestVideoFormat(
+    formats: List<VideoInfoService.FormatOption>
+): VideoInfoService.FormatOption? {
+    val videoOnly = formats.filter { it.hasVideo && !it.hasAudio }
+    val candidates = if (videoOnly.isNotEmpty()) videoOnly else formats.filter { it.hasVideo }
+    return candidates.maxWithOrNull(
+        compareBy<VideoInfoService.FormatOption> { it.height }
+            .thenBy { it.fps }
+            .thenBy { it.bitrate }
+    )
+}
+
+private fun bestAudioFormat(
+    formats: List<VideoInfoService.FormatOption>
+): VideoInfoService.FormatOption? {
+    return formats.filter { it.hasAudio && !it.hasVideo }.maxWithOrNull(
+        compareBy<VideoInfoService.FormatOption> { it.bitrate }
+            .thenBy { it.filesize }
+    )
+}
+
+@Composable
+private fun FormatSelectionList(
+    options: List<VideoInfoService.FormatOption>,
+    selectedId: String,
+    onSelected: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        options.forEach { option ->
+            val selected = selectedId == option.formatId
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = if (selected) MaterialTheme.colorScheme.secondaryContainer
+                    else MaterialTheme.colorScheme.surfaceContainerLow,
+                border = BorderStroke(
+                    if (selected) 1.5.dp else 1.dp,
+                    if (selected) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.outlineVariant
+                )
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable { onSelected(option.formatId) }
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(selected = selected, onClick = { onSelected(option.formatId) })
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            option.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
+                                else MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            option.details,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            if (option.hasVideo && option.hasAudio) "完整音视频流"
+                            else if (option.hasVideo) "独立视频流"
+                            else "独立音频流",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
