@@ -1,6 +1,8 @@
 package com.sxsbsxs.videofetch;
 
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 
 import com.yausername.youtubedl_android.YoutubeDL;
 import com.yausername.youtubedl_android.YoutubeDLRequest;
@@ -29,6 +31,8 @@ import java.util.regex.Pattern;
 
 /** Fetches source metadata and the exact formats exposed by yt-dlp. */
 public final class VideoInfoService {
+    private static final Handler MAIN_HANDLER = new Handler(Looper.getMainLooper());
+
     public interface Callback {
         void onSuccess(Preview preview);
         void onError(String message);
@@ -198,14 +202,16 @@ public final class VideoInfoService {
                 Preview preview = new Preview(title, uploader, duration, resolution, size,
                         extractor, thumbnail, qualities, formats, diagnostic, videoFormatCount,
                         niconicoApiMode);
-                callback.onSuccess(preview);
+                // Every consumer updates Compose state and may show Android UI.
+                // Always cross the main-thread boundary from this worker executor.
+                MAIN_HANDLER.post(() -> callback.onSuccess(preview));
             } catch (Throwable failure) {
                 String message = YouTubeRequestFallback.isBotChallenge(failure)
                         ? YouTubeRequestFallback.userMessage()
                         : failure.getMessage();
                 if (message == null || message.trim().isEmpty()) message = failure.getClass().getSimpleName();
                 if (message.length() > 360) message = message.substring(0, 360) + "…";
-                callback.onError(message);
+                MAIN_HANDLER.post(() -> callback.onError(message));
             } finally {
                 if (cookieFile != null && cookieFile.exists() && !cookieFile.delete()) {
                     cookieFile.deleteOnExit();
