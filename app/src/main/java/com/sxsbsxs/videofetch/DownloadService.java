@@ -156,8 +156,9 @@ public class DownloadService extends Service {
             return START_NOT_STICKY;
         }
 
-        String url = intent == null ? null : intent.getStringExtra(EXTRA_URL);
-        if (!isHttpUrl(url)) {
+        String url = VideoUrlNormalizer.normalize(
+                intent == null ? null : intent.getStringExtra(EXTRA_URL));
+        if (url == null) {
             if (!running.get()) stopSelfResult(startId);
             return START_NOT_STICKY;
         }
@@ -214,9 +215,7 @@ public class DownloadService extends Service {
     }
 
     private boolean isHttpUrl(String value) {
-        return value != null &&
-                (value.regionMatches(true, 0, "https://", 0, 8) ||
-                 value.regionMatches(true, 0, "http://", 0, 7));
+        return VideoUrlNormalizer.isValidHttpUrl(value);
     }
 
     private void runDownload(DownloadTask task, int generation) {
@@ -930,8 +929,15 @@ public class DownloadService extends Service {
 
     public static void start(
             Context context, String url, String formatSelector, boolean audioOnly, String formatLabel) {
+        String normalizedUrl = VideoUrlNormalizer.normalize(url);
+        if (normalizedUrl == null) {
+            android.widget.Toast.makeText(
+                    context, "链接格式不正确，请粘贴完整视频链接或 11 位 YouTube 视频 ID",
+                    android.widget.Toast.LENGTH_LONG).show();
+            return;
+        }
         Intent intent = new Intent(context, DownloadService.class)
-                .putExtra(EXTRA_URL, url)
+                .putExtra(EXTRA_URL, normalizedUrl)
                 .putExtra(EXTRA_FORMAT_SELECTOR, formatSelector == null ? "" : formatSelector)
                 .putExtra(EXTRA_AUDIO_ONLY, audioOnly)
                 .putExtra(EXTRA_FORMAT_LABEL, formatLabel == null ? "" : formatLabel);
