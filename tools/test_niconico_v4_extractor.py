@@ -36,6 +36,9 @@ class FakeNiconicoIE:
     def _match_id(self, url):
         return url.rstrip("/").split("/")[-1]
 
+    def write_debug(self, message):
+        self.debug_messages = getattr(self, 'debug_messages', []) + [message]
+
     def _download_webpage(self, url, video_id, **kwargs):
         return self.page
 
