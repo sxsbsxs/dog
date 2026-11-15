@@ -635,7 +635,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
             drawerState = drawerState,
             gesturesEnabled = selectedTab != 4,
             drawerContent = {
-                ModalDrawerSheet(modifier = Modifier.width(320.dp)) {
+                ModalDrawerSheet(modifier = Modifier.width(360.dp)) {
                     Column(
                         modifier = Modifier.fillMaxSize()
                             .padding(horizontal = 12.dp)
