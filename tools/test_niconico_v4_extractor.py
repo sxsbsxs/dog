@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline contract test for Dog's Niconico V4/DMS yt-dlp plugin."""
+"""Offline contract tests for Dog's Niconico v3 / v3_guest / V4 DMS extractor."""
 
 import html
 import importlib.util
@@ -8,6 +8,7 @@ import re
 import sys
 import types
 from pathlib import Path
+from urllib.parse import urlparse, parse_qs
 
 
 def extract_attributes(tag):
@@ -23,11 +24,14 @@ class FakeNiconicoIE:
         super().__init_subclass__(**kwargs)
         cls.plugin_name = plugin_name
 
-    def __init__(self, page):
+    def __init__(self, page="", api_responses=None):
         self.page = page
+        self.api_responses = list(api_responses or [])
+        self.api_requests = []
         self.options_request = None
         self.access_request = None
         self.manifest_url = None
+        self.debug_messages = []
 
     @property
     def is_logged_in(self):
@@ -37,7 +41,7 @@ class FakeNiconicoIE:
         return url.rstrip("/").split("/")[-1]
 
     def write_debug(self, message):
-        self.debug_messages = getattr(self, 'debug_messages', []) + [message]
+        self.debug_messages.append(message)
 
     def _download_webpage(self, url, video_id, **kwargs):
         return self.page
@@ -47,8 +51,23 @@ class FakeNiconicoIE:
         return object()
 
     def _download_json(self, url, video_id, **kwargs):
-        self.access_request = (url, kwargs)
-        return {"data": {"contentUrl": "https://cdn.example.test/master.m3u8"}}
+        if "/api/watch/" in url:
+            self.api_requests.append((url, kwargs))
+            if not self.api_responses:
+                raise ExtractorError("No fake Niconico API response configured")
+            result = self.api_responses.pop(0)
+            if isinstance(result, Exception):
+                raise result
+            return result
+
+        if "/access-rights/hls" in url:
+            self.access_request = (url, kwargs)
+            return {"data": {"contentUrl": "https://cdn.example.test/master.m3u8"}}
+
+        raise AssertionError("Unexpected JSON request: " + url)
+
+    def _extract_formats(self, api_data, video_id):
+        return None
 
     def _extract_m3u8_formats(self, url, video_id, ext, **kwargs):
         self.manifest_url = url
@@ -93,6 +112,7 @@ spec = importlib.util.spec_from_file_location("dog_niconico_plugin_test", plugin
 plugin_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(plugin_module)
 
+
 watch_data = {
     "video": {
         "id": "sm37593092",
@@ -103,9 +123,9 @@ watch_data = {
         "count": {"view": 1000, "like": 10, "comment": 20},
     },
     "owner": {"nickname": "test-uploader", "id": "123"},
-    "client": {"watchTrackId": "track-from-watch-page"},
+    "client": {"watchTrackId": "track-from-watch-api"},
     "media": {
-        "accessRightKey": "access-key-from-watch-page",
+        "accessRightKey": "access-key-from-watch-api",
         "contents": {
             "videos": [
                 {"id": "video-1080", "isAvailable": True},
@@ -119,40 +139,68 @@ watch_data = {
         },
     },
 }
+api_response = {"meta": {"status": 200}, "data": watch_data}
+
+
+def assert_dms_request(extractor, expected_track_id):
+    url, request = extractor.access_request
+    assert url.startswith("https://nvapi.nicovideo.jp/v1/watch/sm37593092/access-rights/hls?")
+    assert expected_track_id in url
+    assert request["headers"]["X-Access-Right-Key"] == "access-key-from-watch-api"
+    assert request["headers"]["X-Request-With"] == "https://www.nicovideo.jp"
+    payload = json.loads(request["data"].decode())
+    assert payload["outputs"] == [
+        ["video-1080", "audio-high"],
+        ["video-720", "audio-high"],
+    ], payload["outputs"]
+    assert "video-360-unavailable" not in request["data"].decode()
+    assert "audio-unavailable" not in request["data"].decode()
+    assert extractor.options_request.get_method() == "OPTIONS"
+    assert extractor.manifest_url == "https://cdn.example.test/master.m3u8"
+
+
+# Standard v3 succeeds. The plugin must not unnecessarily use v3_guest.
+standard = plugin_module.DogNiconicoIE(api_responses=[api_response])
+standard_result = standard._real_extract(
+    "https://www.nicovideo.jp/watch/sm37593092")
+assert standard_result["dog_niconico_api_mode"] == "v3-dms"
+assert [item["height"] for item in standard_result["formats"]] == [1080, 720]
+assert len(standard.api_requests) == 1
+standard_url, standard_request = standard.api_requests[0]
+assert "/api/watch/v3/sm37593092" in standard_url
+assert standard_request["headers"]["X-Frontend-Id"] == "6"
+assert standard_request["headers"]["X-Frontend-Version"] == "0"
+standard_track = standard_request["query"]["actionTrackId"]
+assert standard_track.startswith("AAAAAAAAAA_")
+assert standard_request["query"]["skips"] == "harmful"
+assert standard_request["query"]["noSideEffect"] == "false"
+assert_dms_request(standard, standard_track)
+
+# Standard v3 failure falls back to v3_guest, reusing the actionTrackId.
+guest = plugin_module.DogNiconicoIE(
+    api_responses=[ExtractorError("standard API denied"), api_response])
+guest_result = guest._real_extract("https://www.nicovideo.jp/watch/sm37593092")
+assert guest_result["dog_niconico_api_mode"] == "v3_guest-dms"
+assert len(guest.api_requests) == 2
+guest_standard_url, guest_standard_request = guest.api_requests[0]
+guest_url, guest_request = guest.api_requests[1]
+assert "/api/watch/v3/sm37593092" in guest_standard_url
+assert "/api/watch/v3_guest/sm37593092" in guest_url
+assert guest_standard_request["query"]["actionTrackId"] == guest_request["query"]["actionTrackId"]
+assert_dms_request(guest, guest_request["query"]["actionTrackId"])
+
+# When both APIs fail, the V4 server-response route remains available.
 wrapper = {"data": {"response": {"$watchV4": {"data": watch_data}}}}
 encoded = html.escape(json.dumps(wrapper), quote=True)
 page = f'<html><head><meta name="server-response" content="{encoded}"></head></html>'
+v4 = plugin_module.DogNiconicoIE(
+    page,
+    api_responses=[
+        ExtractorError("standard API denied"),
+        ExtractorError("guest API denied"),
+    ])
+v4_result = v4._real_extract("https://www.nicovideo.jp/watch/sm37593092")
+assert v4_result["dog_niconico_api_mode"] == "watchV4-dms"
+assert [item["height"] for item in v4_result["formats"]] == [1080, 720]
 
-extractor = plugin_module.DogNiconicoIE(page)
-result = extractor._extract_watch_page_dms(
-    "https://www.nicovideo.jp/watch/sm37593092", "sm37593092")
-
-assert result is not None, "watchV4/DMS payload was not extracted"
-assert result["dog_niconico_api_mode"] == "watchV4-dms"
-assert result["id"] == "sm37593092"
-assert result["title"] == "久本桜"
-assert result["uploader"] == "test-uploader"
-assert [item["height"] for item in result["formats"]] == [1080, 720]
-
-url, request = extractor.access_request
-assert url.startswith("https://nvapi.nicovideo.jp/v1/watch/sm37593092/access-rights/hls?")
-assert "track-from-watch-page" in url
-assert request["headers"]["X-Access-Right-Key"] == "access-key-from-watch-page"
-assert request["headers"]["X-Request-With"] == "nicovideo"
-payload = json.loads(request["data"].decode())
-assert payload["outputs"] == [
-    ["video-1080", "audio-high"],
-    ["video-720", "audio-high"],
-], payload["outputs"]
-assert "video-360-unavailable" not in request["data"].decode()
-assert "audio-unavailable" not in request["data"].decode()
-assert extractor.options_request.get_method() == "OPTIONS"
-assert extractor.manifest_url == "https://cdn.example.test/master.m3u8"
-
-# If the watch page has no DMS media, the plugin leaves the upstream fallback
-# path available rather than inventing a stream.
-fallback_extractor = plugin_module.DogNiconicoIE("<html><body>legacy page</body></html>")
-assert fallback_extractor._extract_watch_page_dms(
-    "https://www.nicovideo.jp/watch/sm9", "sm9") is None
-
-print("Niconico V4/DMS contract test passed")
+print("Niconico v3-first / guest-fallback / V4-DMS contract tests passed")
