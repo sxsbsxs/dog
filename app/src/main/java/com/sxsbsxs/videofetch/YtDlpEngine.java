@@ -18,8 +18,12 @@ import com.yausername.youtubedl_android.YoutubeDL;
  */
 public final class YtDlpEngine {
     private static volatile boolean initialized;
-    private static final String NICONICO_PLUGIN_ASSET =
-            "yt-dlp-plugins/videofetch/yt_dlp_plugins/extractor/niconico.py";
+    private static final String ASSET_PREFIX = "yt-dlp-plugins/";
+    private static final String[] PLUGIN_ASSETS = {
+            ASSET_PREFIX + "videofetch/yt_dlp_plugins/extractor/niconico.py",
+            ASSET_PREFIX + "videofetch/yt_dlp_plugins/extractor/kuaishou.py",
+            ASSET_PREFIX + "videofetch/yt_dlp_plugins/extractor/douyin.py"
+    };
     private static volatile File pluginDirectory;
 
     private YtDlpEngine() {}
@@ -36,29 +40,34 @@ public final class YtDlpEngine {
     }
 
     /**
-     * Installs the app-owned yt-dlp plugin package outside the updater-managed
-     * yt-dlp binary directory, so engine updates cannot delete it.
+     * Installs the app-owned yt-dlp plugins outside the updater-managed
+     * yt-dlp binary directory, so engine updates cannot delete them.
      */
     public static synchronized File getPluginDirectory(Context context) throws IOException {
         if (pluginDirectory != null && pluginDirectory.isDirectory()) return pluginDirectory;
 
         Context appContext = context.getApplicationContext();
         File root = new File(appContext.getNoBackupFilesDir(), "videofetch-yt-dlp-plugins");
-        File pluginFile = new File(root,
-                "videofetch/yt_dlp_plugins/extractor/niconico.py");
-        File parent = pluginFile.getParentFile();
-        if (parent == null || (!parent.isDirectory() && !parent.mkdirs())) {
-            throw new IOException("无法创建 Niconico 解析插件目录");
-        }
 
-        try (InputStream input = appContext.getAssets().open(NICONICO_PLUGIN_ASSET);
-             FileOutputStream output = new FileOutputStream(pluginFile, false)) {
-            byte[] buffer = new byte[8192];
-            int count;
-            while ((count = input.read(buffer)) != -1) {
-                output.write(buffer, 0, count);
+        // Copy the complete package on first access after app start. This also
+        // upgrades files left behind by an earlier app version in noBackupFilesDir.
+        for (String assetPath : PLUGIN_ASSETS) {
+            String relativePath = assetPath.substring(ASSET_PREFIX.length());
+            File destination = new File(root, relativePath);
+            File parent = destination.getParentFile();
+            if (parent == null || (!parent.isDirectory() && !parent.mkdirs())) {
+                throw new IOException("无法创建 yt-dlp 解析插件目录");
             }
-            output.flush();
+
+            try (InputStream input = appContext.getAssets().open(assetPath);
+                 FileOutputStream output = new FileOutputStream(destination, false)) {
+                byte[] buffer = new byte[8192];
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    output.write(buffer, 0, count);
+                }
+                output.flush();
+            }
         }
 
         pluginDirectory = root;
