@@ -120,6 +120,63 @@ public final class SecureCookieStore {
         }
     }
 
+    /**
+     * Saves a pasted Bilibili HTTP Cookie header as a host-scoped Netscape cookie jar.
+     * The encrypted profile replaces the existing Bilibili login profile and is only
+     * sent to Bilibili domains by yt-dlp's cookie-jar domain matching.
+     *
+     * @return number of accepted cookie name/value pairs
+     */
+    public static synchronized int saveBilibiliCookie(Context context, String rawCookie) throws Exception {
+        String value = rawCookie == null ? "" : rawCookie.trim();
+        if (value.isEmpty()) {
+            throw new IllegalArgumentException("请先粘贴 B 站 Cookie");
+        }
+
+        // Accept either a raw "name=value; ..." string or the full "Cookie: ..." header.
+        value = value.replace("\\r\\n", ";").replace('\\r', ';').replace('\\n', ';').trim();
+        if (value.regionMatches(true, 0, "Cookie:", 0, 7)) {
+            value = value.substring(7).trim();
+        }
+
+        Map<String, String> cookies = new LinkedHashMap<>();
+        for (String part : value.split(";")) {
+            String pair = part.trim();
+            if (pair.regionMatches(true, 0, "Cookie:", 0, 7)) {
+                pair = pair.substring(7).trim();
+            }
+            int separator = pair.indexOf('=');
+            if (separator <= 0) continue;
+
+            String name = pair.substring(0, separator).trim();
+            String cookieValue = pair.substring(separator + 1).trim();
+            if (!name.matches("[!#$%&'*+.^_`|~0-9A-Za-z-]+")) continue;
+            if (cookieValue.isEmpty() || cookieValue.indexOf('\\t') >= 0 ||
+                    cookieValue.indexOf('\\r') >= 0 || cookieValue.indexOf('\\n') >= 0) continue;
+            cookies.put(name, cookieValue);
+        }
+
+        if (!cookies.containsKey("SESSDATA")) {
+            throw new IllegalArgumentException(
+                    "没有检测到 SESSDATA。请粘贴 B 站已登录账号的 Cookie 请求头，而不是单独复制网页地址。");
+        }
+
+        StringBuilder jar = new StringBuilder(COOKIE_FILE_HEADER)
+                .append("\\n# Bilibili cookies entered locally in VideoFetch.\\n");
+        for (Map.Entry<String, String> entry : cookies.entrySet()) {
+            // Include subdomains so www, api and passport Bilibili endpoints can use
+            // the same account session. yt-dlp will not send these rows to other sites.
+            jar.append(".bilibili.com\\tTRUE\\t/\\tTRUE\\t0\\t")
+                    .append(entry.getKey()).append('\\t')
+                    .append(entry.getValue()).append('\\n');
+        }
+
+        // Use the same profile key as the in-app Bilibili login page so saving a new
+        // Cookie header cleanly replaces the old account session.
+        saveCookieJar(context, "https://passport.bilibili.com/login", jar.toString());
+        return cookies.size();
+    }
+
     public static synchronized void saveCookieJar(
             Context context, String originUrl, String cookieJar
     ) throws Exception {
