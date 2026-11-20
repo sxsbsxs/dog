@@ -11,7 +11,9 @@ from urllib.parse import urlparse
 
 
 class ExtractorError(Exception):
-    pass
+    def __init__(self, message, expected=False):
+        super().__init__(message)
+        self.expected = expected
 
 
 class FakeResponseHandle:
