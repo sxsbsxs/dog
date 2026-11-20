@@ -144,6 +144,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.Dialog
@@ -429,6 +430,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
         if (selectedTab != 2) {
             cookieJarPreview = ""
             isCookieJarVisible = false
+            bilibiliCookieInput = ""
         }
     }
     var historyJson by remember { mutableStateOf(DownloadHistoryStore.read(context)) }
@@ -2082,6 +2084,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                     modifier = Modifier.fillMaxWidth(),
                                     label = { Text("粘贴 Cookie 请求头") },
                                     placeholder = { Text("SESSDATA=...; bili_jct=...") },
+                                    visualTransformation = PasswordVisualTransformation(),
                                     minLines = 2,
                                     maxLines = 5,
                                     shape = RoundedCornerShape(12.dp)
