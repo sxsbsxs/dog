@@ -377,8 +377,8 @@ public class DownloadService extends Service {
             synchronized (processOutputTail) {
                 diagnostic = processOutputTail.toString();
             }
-            String message = formatDownloadError(failure, diagnostic);
-            String safeDiagnostic = buildSafeDiagnostic(failure, diagnostic);
+            String message = formatDownloadError(failure, diagnostic, url);
+            String safeDiagnostic = buildSafeDiagnostic(failure, diagnostic, url);
             DownloadHistoryStore.record(this, url, "", "", "failed", message, task.formatLabel);
             DownloadState.INSTANCE.failed(message, safeDiagnostic);
             NotificationManager manager = getSystemService(NotificationManager.class);
@@ -490,7 +490,9 @@ public class DownloadService extends Service {
         }
     }
 
-    private String formatDownloadError(Throwable failure, String processOutputTail) {
+    private String formatDownloadError(
+            Throwable failure, String processOutputTail, String sourceUrl
+    ) {
         String detail = collectFailureDetails(failure);
         if (detail.trim().isEmpty()) detail = processOutputTail == null ? "" : processOutputTail.trim();
         if (detail.length() > 3600) detail = detail.substring(detail.length() - 3600);
@@ -505,7 +507,9 @@ public class DownloadService extends Service {
         } else if (normalized.contains("unsupported url") ||
                 normalized.contains("no suitable extractor") ||
                 normalized.contains("no extractor")) {
-            friendly = "暂不支持这个链接，请复制具体的视频播放页地址";
+            friendly = "yt-dlp 不支持当前链接格式或这个页面不是具体视频页。来源：" +
+                    VideoUrlNormalizer.safeSourceLabel(sourceUrl) +
+                    "。请复制直接的视频播放页链接；若仍失败，需要增加该网站专用解析器";
         } else if (normalized.contains("403") || normalized.contains("forbidden")) {
             friendly = "网站拒绝访问（403），请检查解析引擎版本和网络出口";
         } else if (normalized.contains("sign in") ||
@@ -538,9 +542,14 @@ public class DownloadService extends Service {
      * chain. Cookie values and signed URL query strings are redacted before it
      * is stored in UI state or copied to the clipboard.
      */
-    private String buildSafeDiagnostic(Throwable failure, String processOutputTail) {
+    private String buildSafeDiagnostic(
+            Throwable failure, String processOutputTail, String sourceUrl
+    ) {
         StringBuilder report = new StringBuilder();
         report.append("VideoFetch 诊断信息\n");
+        report.append("来源：")
+                .append(VideoUrlNormalizer.safeSourceLabel(sourceUrl))
+                .append('\n');
         try {
             String version = YoutubeDL.getInstance().versionName(getApplicationContext());
             if (version == null || version.trim().isEmpty()) {
