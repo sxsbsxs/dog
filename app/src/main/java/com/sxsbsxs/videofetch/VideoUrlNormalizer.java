@@ -109,16 +109,23 @@ public final class VideoUrlNormalizer {
             host = host.toLowerCase(Locale.ROOT);
             String path = uri.getPath();
             String route = "/";
-            if (path != null && !path.isEmpty() && !"/".equals(path)) {
-                String[] parts = path.split("/");
-                for (String part : parts) {
-                    if (part != null && !part.isEmpty()) {
-                        route = "/" + part;
+            if ("youtu.be".equals(host)) {
+                route = "/<video>";
+            } else if (path != null) {
+                String lowerPath = path.toLowerCase(Locale.ROOT);
+                String[] knownRoutes = {
+                        "/watch", "/shorts", "/live", "/embed", "/v",
+                        "/video", "/videos", "/clip", "/reel", "/p"
+                };
+                for (String known : knownRoutes) {
+                    if (lowerPath.equals(known) || lowerPath.startsWith(known + "/")) {
+                        route = known;
                         break;
                     }
                 }
             }
-            // Do not expose opaque IDs or arbitrary path parameters.
+            // Only a host and a known route label are disclosed. IDs, usernames,
+            // query strings, fragments, and arbitrary path segments stay hidden.
             return host + route;
         } catch (Exception ignored) {
             return "无法识别域名";
