@@ -11,7 +11,7 @@ from yt_dlp.extractor.common import InfoExtractor
 from yt_dlp.utils import ExtractorError
 
 
-class VideoFetchKuaishouIE(InfoExtractor, plugin_name='videofetch_kuaishou'):
+class VideoFetchKuaishouIE(InfoExtractor):
     IE_NAME = 'videofetch:kuaishou'
     _VALID_URL = (
         r'https?://(?:(?:www\.)?kuaishou\.com/(?:short-video|f)/'
