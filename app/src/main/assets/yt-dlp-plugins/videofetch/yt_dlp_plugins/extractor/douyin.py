@@ -183,8 +183,15 @@ class VideoFetchDouyinIE(DouyinIE, plugin_name='videofetch_douyin'):
             'User-Agent': VideoFetchDouyinIE._MOBILE_HEADERS['User-Agent'],
         }
         for fmt in info.get('formats') or []:
-            if isinstance(fmt, dict):
-                fmt.setdefault('http_headers', {}).update(headers)
+            if not isinstance(fmt, dict):
+                continue
+            stream_url = fmt.get('url')
+            if isinstance(stream_url, str) and '/playwm/' in stream_url:
+                fmt['url'] = stream_url.replace('/playwm/', '/play/')
+            existing_headers = fmt.get('http_headers')
+            if not isinstance(existing_headers, dict):
+                existing_headers = {}
+            fmt['http_headers'] = {**existing_headers, **headers}
         return info
 
     def _real_extract(self, url):
