@@ -30,7 +30,7 @@ jobs:
       - name: Check bundled yt-dlp plugin syntax
         env:
           PYTHONPYCACHEPREFIX: /tmp/videofetch-python-cache
-        run: python -m py_compile app/src/main/assets/yt-dlp-plugins/videofetch/yt_dlp_plugins/extractor/niconico.py
+        run: python -m py_compile app/src/main/assets/yt-dlp-plugins/videofetch/yt_dlp_plugins/extractor/niconico.py app/src/main/assets/yt-dlp-plugins/videofetch/yt_dlp_plugins/extractor/kuaishou.py
       - name: Test Niconico V4/DMS extraction contract
         run: python tools/test_niconico_v4_extractor.py
       - name: Build debug APK
