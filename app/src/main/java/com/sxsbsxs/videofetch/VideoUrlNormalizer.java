@@ -95,6 +95,36 @@ public final class VideoUrlNormalizer {
         }
     }
 
+    /**
+     * Returns a privacy-safe source label for diagnostics. It intentionally
+     * omits query parameters, fragments, usernames, and video IDs.
+     */
+    public static String safeSourceLabel(String input) {
+        String normalized = normalize(input);
+        if (normalized == null) return "无法识别域名";
+        try {
+            URI uri = new URI(normalized);
+            String host = uri.getHost();
+            if (host == null || host.isEmpty()) return "无法识别域名";
+            host = host.toLowerCase(Locale.ROOT);
+            String path = uri.getPath();
+            String route = "/";
+            if (path != null && !path.isEmpty() && !"/".equals(path)) {
+                String[] parts = path.split("/");
+                for (String part : parts) {
+                    if (part != null && !part.isEmpty()) {
+                        route = "/" + part;
+                        break;
+                    }
+                }
+            }
+            // Do not expose opaque IDs or arbitrary path parameters.
+            return host + route;
+        } catch (Exception ignored) {
+            return "无法识别域名";
+        }
+    }
+
     public static boolean isValidHttpUrl(String input) {
         return normalize(input) != null;
     }
