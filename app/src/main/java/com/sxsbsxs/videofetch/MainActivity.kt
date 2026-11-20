@@ -423,6 +423,7 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
     var authorizedSites by remember { mutableStateOf(SecureCookieStore.listAuthorizedSites(context)) }
     // Cookie plaintext stays in transient UI state only while the authorization page is visible.
     var cookieJarPreview by remember { mutableStateOf("") }
+    var bilibiliCookieInput by remember { mutableStateOf("") }
     var isCookieJarVisible by remember { mutableStateOf(false) }
     LaunchedEffect(selectedTab) {
         if (selectedTab != 2) {
@@ -2069,6 +2070,56 @@ private fun VideoFetchApp(initialUrl: String?, onDownload: (String, String, Bool
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                                Text(
+                                    "B站 Cookie",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                OutlinedTextField(
+                                    value = bilibiliCookieInput,
+                                    onValueChange = { bilibiliCookieInput = it },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    label = { Text("粘贴 Cookie 请求头") },
+                                    placeholder = { Text("SESSDATA=...; bili_jct=...") },
+                                    minLines = 2,
+                                    maxLines = 5,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                Text(
+                                    "保存后每次 B 站解析、画质预览和下载都会自动使用。再次粘贴保存会替换旧 B 站 Cookie，不影响其他网站授权。",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Button(
+                                    onClick = {
+                                        runCatching {
+                                            SecureCookieStore.saveBilibiliCookie(context, bilibiliCookieInput)
+                                        }.onSuccess { cookieCount ->
+                                            bilibiliCookieInput = ""
+                                            authorizedSites = SecureCookieStore.listAuthorizedSites(context)
+                                            hasCookieJar = SecureCookieStore.hasCookieJar(context)
+                                            cookieJarPreview = ""
+                                            isCookieJarVisible = false
+                                            Toast.makeText(
+                                                context,
+                                                "B站 Cookie 已保存（$cookieCount 项），之后会自动使用",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }.onFailure { failure ->
+                                            Toast.makeText(
+                                                context,
+                                                failure.message ?: "B站 Cookie 保存失败",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                    },
+                                    enabled = bilibiliCookieInput.isNotBlank(),
+                                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                                    shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Text("保存并启用 B站 Cookie")
+                                }
                                 if (authorizedSites.isNotEmpty()) {
                                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                                     authorizedSites.forEach { site ->
