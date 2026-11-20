@@ -134,7 +134,7 @@ public final class SecureCookieStore {
         }
 
         // Accept either a raw "name=value; ..." string or the full "Cookie: ..." header.
-        value = value.replace("\\r\\n", ";").replace('\\r', ';').replace('\\n', ';').trim();
+        value = value.replace("\r\n", ";").replace('\r', ';').replace('\n', ';').trim();
         if (value.regionMatches(true, 0, "Cookie:", 0, 7)) {
             value = value.substring(7).trim();
         }
@@ -151,8 +151,8 @@ public final class SecureCookieStore {
             String name = pair.substring(0, separator).trim();
             String cookieValue = pair.substring(separator + 1).trim();
             if (!name.matches("[!#$%&'*+.^_`|~0-9A-Za-z-]+")) continue;
-            if (cookieValue.isEmpty() || cookieValue.indexOf('\\t') >= 0 ||
-                    cookieValue.indexOf('\\r') >= 0 || cookieValue.indexOf('\\n') >= 0) continue;
+            if (cookieValue.isEmpty() || cookieValue.indexOf('\t') >= 0 ||
+                    cookieValue.indexOf('\r') >= 0 || cookieValue.indexOf('\n') >= 0) continue;
             cookies.put(name, cookieValue);
         }
 
@@ -162,13 +162,13 @@ public final class SecureCookieStore {
         }
 
         StringBuilder jar = new StringBuilder(COOKIE_FILE_HEADER)
-                .append("\\n# Bilibili cookies entered locally in VideoFetch.\\n");
+                .append("\n# Bilibili cookies entered locally in VideoFetch.\n");
         for (Map.Entry<String, String> entry : cookies.entrySet()) {
             // Include subdomains so www, api and passport Bilibili endpoints can use
             // the same account session. yt-dlp will not send these rows to other sites.
-            jar.append(".bilibili.com\\tTRUE\\t/\\tTRUE\\t0\\t")
-                    .append(entry.getKey()).append('\\t')
-                    .append(entry.getValue()).append('\\n');
+            jar.append(".bilibili.com\tTRUE\t/\tTRUE\t0\t")
+                    .append(entry.getKey()).append('\t')
+                    .append(entry.getValue()).append('\n');
         }
 
         // Use the same profile key as the in-app Bilibili login page so saving a new
