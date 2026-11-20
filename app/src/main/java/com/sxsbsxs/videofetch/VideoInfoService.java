@@ -205,9 +205,16 @@ public final class VideoInfoService {
                 String failureText = failure.toString();
                 String fullFailureDetails = NetworkErrorClassifier.collectFailureDetails(failure) +
                         "\\n" + failureText;
+                String normalizedFailure = fullFailureDetails.toLowerCase(java.util.Locale.ROOT);
                 String message;
                 if (NetworkErrorClassifier.isDnsResolutionFailure(fullFailureDetails)) {
                     message = NetworkErrorClassifier.dnsFailureMessage();
+                } else if (normalizedFailure.contains("unsupported url") ||
+                        normalizedFailure.contains("no suitable extractor") ||
+                        normalizedFailure.contains("no extractor")) {
+                    message = "yt-dlp 不支持当前链接格式，或它不是具体的视频播放页。来源：" +
+                            VideoUrlNormalizer.safeSourceLabel(targetUrl) +
+                            "。请复制具体的视频播放页面链接；如果仍失败，需要针对这个网站增加解析器。";
                 } else if (YouTubeRequestFallback.isJavaScriptRuntimeFailure(fullFailureDetails) ||
                         YouTubeRequestFallback.shouldRetry(targetUrl, failure, fullFailureDetails)) {
                     message = YouTubeRequestFallback.userMessage(fullFailureDetails);
@@ -217,7 +224,8 @@ public final class VideoInfoService {
                 if (message == null || message.trim().isEmpty()) message = failure.getClass().getSimpleName();
                 if (message.length() > 360) message = message.substring(0, 360) + "…";
                 final String callbackMessage = message;
-                final String callbackDiagnostic = buildSafeDiagnostic(app, failure, fullFailureDetails);
+                final String callbackDiagnostic = buildSafeDiagnostic(
+                        app, failure, fullFailureDetails, targetUrl);
                 MAIN_HANDLER.post(() -> callback.onError(callbackMessage, callbackDiagnostic));
             } finally {
                 if (cookieFile != null && cookieFile.exists() && !cookieFile.delete()) {
@@ -235,9 +243,12 @@ public final class VideoInfoService {
      * client does not hide the actual error from later attempts.
      */
     private static String buildSafeDiagnostic(
-            Context app, Throwable failure, String failureDetails
+            Context app, Throwable failure, String failureDetails, String sourceUrl
     ) {
         StringBuilder report = new StringBuilder("VideoFetch 预解析诊断\n");
+        report.append("来源：")
+                .append(VideoUrlNormalizer.safeSourceLabel(sourceUrl))
+                .append('\n');
         try {
             String version = YoutubeDL.getInstance().versionName(app);
             if (version == null || version.trim().isEmpty()) {
