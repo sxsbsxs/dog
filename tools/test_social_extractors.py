@@ -157,7 +157,7 @@ else:
     raise AssertionError("Expected a clear error when both Douyin paths fail")
 
 # Balanced JSON extraction must tolerate nested objects and braces inside strings.
-nested = {"value": {"text": "brace } and quote \\""}, "list": [1, 2, 3]}
+nested = {"value": {"text": "brace } inside string"}, "list": [1, 2, 3]}
 wrapped = "window._ROUTER_DATA = " + json.dumps(nested) + ";"
 assert Plugin._json_object_after(wrapped, "window._ROUTER_DATA") == nested
 
