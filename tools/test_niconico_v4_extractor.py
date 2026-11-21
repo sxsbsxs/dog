@@ -8,7 +8,6 @@ import re
 import sys
 import types
 from pathlib import Path
-from urllib.parse import urlparse, parse_qs
 
 
 def extract_attributes(tag):
@@ -142,11 +141,11 @@ watch_data = {
 api_response = {"meta": {"status": 200}, "data": watch_data}
 
 
-def assert_dms_request(extractor, expected_track_id):
+def assert_dms_request(extractor, expected_track_id, expected_access_key="access-key-from-watch-api"):
     url, request = extractor.access_request
     assert url.startswith("https://nvapi.nicovideo.jp/v1/watch/sm37593092/access-rights/hls?")
     assert expected_track_id in url
-    assert request["headers"]["X-Access-Right-Key"] == "access-key-from-watch-api"
+    assert request["headers"]["X-Access-Right-Key"] == expected_access_key
     assert request["headers"]["X-Request-With"] == "https://www.nicovideo.jp"
     payload = json.loads(request["data"].decode())
     assert payload["outputs"] == [
@@ -155,7 +154,8 @@ def assert_dms_request(extractor, expected_track_id):
     ], payload["outputs"]
     assert "video-360-unavailable" not in request["data"].decode()
     assert "audio-unavailable" not in request["data"].decode()
-    assert extractor.options_request.get_method() == "OPTIONS"
+    # Direct yt-dlp HTTP calls must not perform a browser-only CORS preflight.
+    assert extractor.options_request is None
     assert extractor.manifest_url == "https://cdn.example.test/master.m3u8"
 
 
@@ -178,6 +178,23 @@ assert standard_request["query"]["skips"] == "harmful"
 assert standard_request["query"]["noSideEffect"] == "false"
 assert standard_request["query"]["t"] == standard_track.split("_", 1)[1]
 assert_dms_request(standard, "track-from-watch-api")
+
+# An empty contents placeholder must not hide valid streams in media.domand.
+domand_data = json.loads(json.dumps(watch_data))
+domand_data["media"]["domand"] = {
+    "accessRightKey": "domand-access-key",
+    "videos": domand_data["media"]["contents"]["videos"],
+    "audios": domand_data["media"]["contents"]["audios"],
+}
+domand_data["media"]["contents"] = {}
+domand_data["media"].pop("accessRightKey", None)
+domand_only = plugin_module.VideoFetchNiconicoIE(
+    api_responses=[{"meta": {"status": 200}, "data": domand_data}])
+domand_result = domand_only._real_extract(
+    "https://www.nicovideo.jp/watch/sm37593092")
+assert domand_result["videofetch_niconico_api_mode"] == "v3-dms"
+assert [item["height"] for item in domand_result["formats"]] == [1080, 720]
+assert_dms_request(domand_only, "track-from-watch-api", "domand-access-key")
 
 # Standard v3 failure falls back to v3_guest, reusing the actionTrackId.
 guest = plugin_module.VideoFetchNiconicoIE(

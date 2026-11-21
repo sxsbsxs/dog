@@ -16,7 +16,6 @@ import json
 import re
 import time
 from urllib.parse import urlencode
-from urllib.request import Request
 
 from yt_dlp.extractor.niconico import NiconicoIE as _NiconicoIE
 from yt_dlp.utils import ExtractorError, extract_attributes, parse_iso8601
@@ -67,36 +66,48 @@ class VideoFetchNiconicoIE(_NiconicoIE, plugin_name='videofetch_niconico_v4_dms'
     def _get_dms_streams(self, media):
         if not isinstance(media, dict):
             return None
-        contents = media.get('contents')
-        domand = media.get('domand')
-        source = contents if isinstance(contents, dict) else domand
-        if not isinstance(source, dict):
-            return None
 
-        videos = [
-            item for item in (source.get('videos') or [])
-            if isinstance(item, dict) and item.get('id') and item.get('isAvailable')
-        ]
-        audios = [
-            item for item in (source.get('audios') or [])
-            if isinstance(item, dict) and item.get('id') and item.get('isAvailable')
-        ]
-        access_key = (
-            source.get('accessRightKey')
-            or media.get('accessRightKey')
-            or (domand.get('accessRightKey') if isinstance(domand, dict) else None)
-        )
-        return (videos, audios, access_key) if videos and audios and access_key else None
+        domand = media.get('domand')
+        # Some watch responses include an empty/placeholder "contents" object
+        # next to the actual DMS data. Check both containers instead of letting
+        # an empty "contents" object mask a usable "domand" response.
+        for source in (media.get('contents'), domand):
+            if not isinstance(source, dict):
+                continue
+
+            videos = [
+                item for item in (source.get('videos') or [])
+                if isinstance(item, dict) and item.get('id') and item.get('isAvailable')
+            ]
+            audios = [
+                item for item in (source.get('audios') or [])
+                if isinstance(item, dict) and item.get('id') and item.get('isAvailable')
+            ]
+            access_key = (
+                source.get('accessRightKey')
+                or media.get('accessRightKey')
+                or (domand.get('accessRightKey') if isinstance(domand, dict) else None)
+            )
+            if videos and audios and access_key:
+                return videos, audios, access_key
+        return None
 
     def _request_dms_formats(self, watch_data, video_id):
         # Prefer yt-dlp's own domand implementation. It already maps audio/video
         # HLS variants, codecs, bitrate and source IDs into format entries.
         media = watch_data.get('media') or {}
         domand = media.get('domand') if isinstance(media, dict) else None
-        if isinstance(domand, dict):
-            formats = self._extract_formats(watch_data, video_id)
-            if formats:
-                return formats
+        if isinstance(domand, dict) and domand:
+            try:
+                formats = self._extract_formats(watch_data, video_id)
+                if formats:
+                    return formats
+            except Exception as error:
+                # Continue with the explicit access-rights route if the bundled
+                # yt-dlp version cannot interpret this newer DMS payload shape.
+                self.write_debug(
+                    f'VideoFetch Niconico: upstream domand mapping unavailable; '
+                    f'trying explicit DMS access rights ({error})')
 
         stream_data = self._get_dms_streams(media)
         if not stream_data:
@@ -122,13 +133,8 @@ class VideoFetchNiconicoIE(_NiconicoIE, plugin_name='videofetch_niconico_v4_dms'
         }
         payload = json.dumps({'outputs': outputs}).encode()
 
-        try:
-            self._request_webpage(
-                Request(endpoint, headers=headers, method='OPTIONS'),
-                video_id, note='Checking Niconico DMS access rights')
-        except Exception as error:
-            self.write_debug(f'VideoFetch Niconico: DMS OPTIONS preflight was not accepted: {error}')
-
+        # This is a direct yt-dlp HTTP request, not a browser fetch. CORS
+        # preflight is a browser policy and an OPTIONS round-trip is unnecessary.
         access = self._download_json(
             endpoint, video_id, note='Requesting Niconico DMS HLS access rights',
             headers=headers, data=payload)
