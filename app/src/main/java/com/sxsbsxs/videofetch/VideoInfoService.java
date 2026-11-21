@@ -517,35 +517,37 @@ public final class VideoInfoService {
 
         if (qualities.isEmpty()) {
             if (niconico) {
-                return "Niconico NVAPI v4、v3 和兼容提取路径均未返回可用视频流。请确认视频本身可播放、账号授权有效；应用不会显示源站没有提供的画质。";
+                return "Niconico " + niconicoRouteLabel(niconicoApiMode) +
+                        "没有返回可用视频流。VideoFetch 会尝试使用上游 v3/v3_guest 提取器；请检查视频可用性和账号权限。";
             }
             return "解析器没有收到可用的视频画质列表；下载时会由源站选择默认格式。";
         }
 
         int highestHeight = qualities.get(0).height;
-        if (niconico && isNiconicoV4Route(niconicoApiMode)) {
-            return "本次通过 Niconico NVAPI v4 + DMS 获取到源站实际最高 " + highestHeight +
-                    "p。画质选项来自本次 HLS 清单及可用媒体轨道；如果官方播放器也无法播放更高规格，应用不会凭空生成更高画质。";
-        }
         if (niconico && highestHeight <= 720) {
             if ("v3-dms".equals(niconicoApiMode) || "v3".equals(niconicoApiMode)) {
                 return "本次通过 Niconico 标准 v3 登录接口获取到最高 " + highestHeight +
                         "p。标准 v3 需要 user_session，说明本次解析走的是登录接口，不是游客接口。" +
-                        "如果同一账号在 Niconico 官方播放器能播放更高画质，那么当前 v3/DMS 兼容路径仍未拿到完整媒体轨道。";
+                        "Niconico 官方规则：普通会员最高 720p，Premium 最高 1080p。" +
+                        "如果你确认账号是 Premium，而且同一账号在 Niconico 官网能播放该视频的 1080p，" +
+                        "那么当前 DMS 返回的数据与官网不一致，问题在接口/会话取流，不是画质选择界面把 1080p 隐藏了。";
             }
             if ("v3_guest-dms".equals(niconicoApiMode) || "v3_guest".equals(niconicoApiMode)) {
                 return "本次最终使用了 Niconico 游客接口，实际只返回最高 " + highestHeight +
-                        "p。保存了 Cookie 不代表这次解析已使用登录权限；请确认账号授权是否有效。";
+                        "p。虽然应用可能保存了 Cookie，但标准 v3 登录接口没有成功提供可用流，" +
+                        "所以这次结果不能算已使用登录画质权限。请重新授权并确认账号已登录。" +
+                        "普通会员官方最高 720p，Premium 最高 1080p。";
             }
             String account = hasNiconicoSession
                     ? "本机 Cookie 文件中检测到了 user_session"
                     : "本机 Cookie 文件中没有检测到 user_session";
             return "本次通过 " + niconicoRouteLabel(niconicoApiMode) +
                     " 获取到最高 " + highestHeight + "p（" + account +
-                    "）。画质以源站实际提供的媒体轨道为准。";
+                    "）。Niconico 官方规则：普通会员最高 720p，Premium 最高 1080p。" +
+                    "如果你是 Premium 且官网同一视频可播放 1080p，说明当前解析路径没有拿到官网可用的完整流。";
         }
         if (niconico && highestHeight > 720 && !hasNiconicoSession) {
-            return "匿名解析实际返回了 " + highestHeight +
+            return "匿名页面解析实际返回了 " + highestHeight +
                     "p 流；VideoFetch 将使用解析器返回的真实流，不会用 1080p 标签伪造画质。";
         }
 
@@ -558,18 +560,10 @@ public final class VideoInfoService {
         return "";
     }
 
-    private static boolean isNiconicoV4Route(String mode) {
-        return "v4-preissued-dms".equals(mode) ||
-                "v4-access-rights-dms".equals(mode) ||
-                "watchV4-access-rights-dms".equals(mode);
-    }
-
     private static String niconicoRouteLabel(String mode) {
-        if ("v4-preissued-dms".equals(mode)) return "NVAPI v4 预发 HLS + DMS";
-        if ("v4-access-rights-dms".equals(mode)) return "NVAPI v4 access-rights + DMS";
-        if ("watchV4-access-rights-dms".equals(mode)) return "视频页 $watchV4 + DMS";
         if ("v3-dms".equals(mode)) return "标准 v3 + DMS";
         if ("v3_guest-dms".equals(mode)) return "游客 v3_guest + DMS";
+        if ("watchV4-dms".equals(mode)) return "视频页 $watchV4 + DMS";
         if ("server-response-dms".equals(mode)) return "视频页 server-response + DMS";
         if ("v3_guest".equals(mode)) return "游客 v3_guest";
         if ("v3".equals(mode)) return "标准 v3";
