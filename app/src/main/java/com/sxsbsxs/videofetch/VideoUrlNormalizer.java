@@ -82,21 +82,6 @@ public final class VideoUrlNormalizer {
             }
 
             String normalizedHost = host.toLowerCase(Locale.ROOT);
-
-            // nicovideodl.jp is a third-party watch/download wrapper. Extract
-            // only its public NicoNico video ID and send it through our own
-            // first-party yt-dlp extractor instead of parsing the wrapper page.
-            // Do not forward wrapper query parameters, cookies, or fragments.
-            if ("nicovideodl.jp".equals(normalizedHost) ||
-                    "www.nicovideodl.jp".equals(normalizedHost)) {
-                Matcher niconicoId = Pattern.compile(
-                        "^/watch/([a-z]{2}[0-9]+)/?$",
-                        Pattern.CASE_INSENSITIVE).matcher(uri.getPath() == null ? "" : uri.getPath());
-                if (niconicoId.matches()) {
-                    return "https://www.nicovideo.jp/watch/" + niconicoId.group(1);
-                }
-            }
-
             boolean hostnameLooksValid = normalizedHost.indexOf('.') > 0 ||
                     normalizedHost.indexOf(':') >= 0 ||
                     "localhost".equals(normalizedHost);

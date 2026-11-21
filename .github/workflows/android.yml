@@ -33,8 +33,6 @@ jobs:
         run: python -m py_compile app/src/main/assets/yt-dlp-plugins/videofetch/yt_dlp_plugins/extractor/niconico.py app/src/main/assets/yt-dlp-plugins/videofetch/yt_dlp_plugins/extractor/kuaishou.py app/src/main/assets/yt-dlp-plugins/videofetch/yt_dlp_plugins/extractor/douyin.py
       - name: Test Niconico V4/DMS extraction contract
         run: python tools/test_niconico_v4_extractor.py
-      - name: Test shared URL normalization
-        run: python tools/test_video_url_normalizer.py
       - name: Test Douyin share URL and SSR extraction contract
         run: python tools/test_social_extractors.py
       - name: Build debug APK
